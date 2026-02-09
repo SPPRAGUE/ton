@@ -187,7 +187,7 @@ struct MethodCallCandidate;
 
 bool is_type_cellT(TypePtr any_type);
 CustomPackUnpackF get_custom_pack_unpack_function(TypePtr receiver_type, std::vector<MethodCallCandidate>* out_candidates = nullptr);
-std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std::string& because_msg);
+std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std::string& because_msg, bool& tree_auto_generated);
 TypePtr calculate_intN_to_serialize_enum(EnumDefPtr enum_ref);
 
 std::vector<var_idx_t> create_default_PackOptions(CodeBlob& code, AnyV origin);

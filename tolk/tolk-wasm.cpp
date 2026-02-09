@@ -149,6 +149,7 @@ static td::Result<std::string> compile_internal(char *config_json) {
   json.key_value("fiftCode", result.fift_code);
   json.key_value("codeBoc64", JsonPrettyOutput::Unescaped{fift_res.codeBoc64});
   json.key_value("codeHashHex", JsonPrettyOutput::Unescaped{fift_res.codeHashHex});
+  json.key_value("abiJson", JsonPrettyOutput::Unquoted{result.abi_json});
   json.key_value("tolkVersion", JsonPrettyOutput::Unescaped{TOLK_VERSION});
   json.key_value("stderr", errs.str());
   json.end_object();

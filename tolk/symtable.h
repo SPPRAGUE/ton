@@ -354,7 +354,7 @@ struct StructData final : Symbol {
 
     bool exists() const { return prefix_len != 0; }
 
-    std::string format_as_slice() const;    // "x{...}" (or "b{...}")
+    std::string format_as_string(bool as_fift_slice) const;  // "0x..." / "0b..." or "x{...}" / "b{...}"
   };
 
   std::vector<StructFieldPtr> fields;

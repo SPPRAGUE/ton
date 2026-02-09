@@ -28,6 +28,7 @@ bool is_contract_property_type_node(std::string_view name) {
       || name == "thrownErrors"
       || name == "storage"
       || name == "storageAtDeployment"
+      || name == "forceAbiExport"
   ;
 }
 
@@ -74,6 +75,7 @@ ContractDirective* parse_contract_directive(AnyV v) {
     else if (prop == "thrownErrors")          d->thrownErrors         = expect_type(ith);
     else if (prop == "storage")               d->storage              = expect_type(ith);
     else if (prop == "storageAtDeployment")   d->storageAtDeployment  = expect_type(ith);
+    else if (prop == "forceAbiExport")        d->forceAbiExport       = expect_type(ith);
     else if (prop != "custom")
       err("unknown contract property `{}`", prop).fire(ith->name_range());
   }

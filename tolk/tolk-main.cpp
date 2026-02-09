@@ -44,6 +44,7 @@ using namespace tolk;
 
 enum LongOnlyOptions {
   OPT_BOC_OUTPUT = 256,
+  OPT_ABI_OUTPUT,
   OPT_PATH_MAPPING,
   OPT_NO_STACK_COMMENTS,
   OPT_NO_LINE_COMMENTS,
@@ -54,6 +55,7 @@ enum LongOnlyOptions {
 
 static struct option long_options[] = {
   {"output", required_argument, nullptr, 'o'},
+  {"abi-output", required_argument, nullptr, OPT_ABI_OUTPUT},
   {"boc-output", required_argument, nullptr, OPT_BOC_OUTPUT},
   {"opt-level", required_argument, nullptr, 'O'},
   {"path-mapping", required_argument, nullptr, OPT_PATH_MAPPING},
@@ -76,6 +78,8 @@ void usage(const char* progname) {
             "\tWrite generated code into specified .fif file instead of stdout\n"
          "--boc-output <boc-filename>\n"
             "\tGenerate Fift instructions to save TVM bytecode into .boc file\n"
+         "--abi-output <json-filename>\n"
+            "\tWrite contract ABI into specified .json file\n"
          "-O, --opt-level <level>\n"
             "\tSet optimization level (2 by default)\n"
          "--path-mapping <mapping>\n"
@@ -303,6 +307,9 @@ int main(int argc, char* const argv[]) {
       case OPT_BOC_OUTPUT:
         G_settings.boc_output_filename = optarg;
         break;
+      case OPT_ABI_OUTPUT:
+        G_settings.abi_json_filename = optarg;
+        break;
       case 'O':
         G_settings.optimization_level = std::max(0, atoi(optarg));
         break;
@@ -399,6 +406,15 @@ int main(int argc, char* const argv[]) {
     return 2;
   }
   fif_out_file << result.fift_code;
+
+  if (!G_settings.abi_json_filename.empty()) {
+    std::ofstream abi_out_file(G_settings.abi_json_filename);
+    if (!abi_out_file.is_open()) {
+      std::cerr << "Failed to create abi file " << G_settings.abi_json_filename << std::endl;
+      return 2;
+    }
+    abi_out_file << result.abi_json;
+  }
 
   compilation_succeed_after_output_done();
   return 0;

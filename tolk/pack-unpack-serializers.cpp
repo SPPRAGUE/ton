@@ -1439,7 +1439,7 @@ struct S_CustomReceiverForPackUnpack final : ISerializer {
 //
 
 
-std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std::string& because_msg) {
+std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std::string& because_msg, bool& tree_auto_generated) {
   const TypeDataUnion* t_union = union_type->try_as<TypeDataUnion>();
   std::vector<PackOpcode> result;
   result.reserve(t_union->size());
@@ -1467,6 +1467,7 @@ std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std:
     for (TypePtr variant : t_union->variants) {
       result.push_back(variant->unwrap_alias()->try_as<TypeDataStruct>()->struct_ref->opcode);
     }
+    tree_auto_generated = false;
     return result;
   }
 
@@ -1480,7 +1481,6 @@ std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std:
     } else {
       because_msg = "because of mixing primitives and struct `" + last_struct_with_opcode->as_human_readable() + "` with serialization prefix\n""hint: extract primitives to single-field structs and provide prefixes";
     }
-    return result;
   }
 
   // okay, none of the opcodes are specified, generate a prefix tree;
@@ -1499,6 +1499,8 @@ std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std:
       result.emplace_back(cur_prefix++, prefix_len);
     }
   }
+
+  tree_auto_generated = true;
   return result;
 }
 
@@ -1653,7 +1655,8 @@ static std::unique_ptr<ISerializer> get_serializer_for_type(TypePtr any_type) {
     // compiler is able to generate serialization prefixes automatically;
     // and this type is valid, it was checked earlier
     std::string err_msg;
-    std::vector<PackOpcode> opcodes = auto_generate_opcodes_for_union(t_union, err_msg);
+    bool tree_auto_generated;
+    std::vector<PackOpcode> opcodes = auto_generate_opcodes_for_union(t_union, err_msg, tree_auto_generated);
     tolk_assert(err_msg.empty());
     return std::make_unique<S_MultipleConstructors>(t_union, std::move(opcodes));
   }

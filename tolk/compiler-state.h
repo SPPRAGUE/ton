@@ -59,6 +59,7 @@ struct TolkCompilationResult {
   std::vector<ThrownParseError> errors;
   std::string fatal_msg;      // some Fatal happened, it has no location and can't be pretty formatted
   std::string fift_code;      // fift code exists only if no compilation errors
+  std::string abi_json;       // ABI JSON exists only if no compilation errors
 };
 
 // starts all the compilation pipeline, called from tolk-main and tolk-wasm

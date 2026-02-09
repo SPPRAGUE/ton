@@ -686,6 +686,7 @@ public:
     if (d->thrownErrors)          finalize_type_node(d->thrownErrors);
     if (d->storage)               finalize_type_node(d->storage);
     if (d->storageAtDeployment)   finalize_type_node(d->storageAtDeployment);
+    if (d->forceAbiExport)        finalize_type_node(d->forceAbiExport);
   }
 };
 

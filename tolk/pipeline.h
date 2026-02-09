@@ -53,6 +53,7 @@ void pipeline_convert_ast_to_legacy_Expr_Op();
 
 void pipeline_find_unused_symbols();
 void pipeline_generate_fif_output(std::ostream& os);
+void pipeline_collect_abi_output(std::ostream& os);
 
 // these pipes also can be called per-function individually
 // they are called for instantiated generics functions, when `f<T>` is deeply cloned as `f<int>`

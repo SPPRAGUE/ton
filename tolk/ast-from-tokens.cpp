@@ -633,6 +633,7 @@ static AnyV parse_type_alias_declaration(Lexer& lex, AnnotationsAbove& annotatio
 
   lex.expect(tok_assign, "`=`");
   if (lex.tok() == tok_builtin) {   // type map<K, V> = builtin
+    annotations.flush();
     range.end(lex.cur_range());
     lex.next();
     return createV<ast_empty_statement>(range);
@@ -2068,25 +2069,28 @@ AnyV parse_src_file_to_ast(const SrcFile* file) {
   Lexer lex(file);
   SrcRange range = lex.range_start();
 
-  while (!lex.is_eof()) {
+  while (lex.tok() != tok_eof) {
     switch (lex.tok()) {
       case tok_tolk:
         if (!annotations.empty()) {
           lex.unexpected("declaration after @annotations");
         }
         toplevel_declarations.push_back(parse_tolk_required_version(lex));
+        annotations.flush();
         break;
       case tok_import:
         if (!annotations.empty()) {
           lex.unexpected("declaration after @annotations");
         }
         toplevel_declarations.push_back(parse_import_directive(lex));
+        annotations.flush();
         break;
       case tok_semicolon:
         if (!annotations.empty()) {
           lex.unexpected("declaration after @annotations");
         }
         lex.next();  // don't add ast_empty, no need
+        annotations.flush();
         break;
 
       case tok_doc_comment:
@@ -2133,6 +2137,10 @@ AnyV parse_src_file_to_ast(const SrcFile* file) {
       default:
         lex.unexpected("top-level declaration");
     }
+  }
+
+  if (!annotations.empty()) {
+    lex.error("unexpected end of file");
   }
 
   range.end(toplevel_declarations.empty() ? lex.cur_range() : toplevel_declarations.back()->range);

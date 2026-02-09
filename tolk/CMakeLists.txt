@@ -4,6 +4,8 @@ set(TOLK_SOURCE
         symtable.cpp
         compilation-errors.cpp
         compiler-state.cpp
+        abi.cpp
+        type-export-json.cpp
         ast.cpp
         ast-from-tokens.cpp
         constant-evaluator.cpp
@@ -34,6 +36,7 @@ set(TOLK_SOURCE
         pipe-ast-to-legacy.cpp
         pipe-find-unused-symbols.cpp
         pipe-generate-fif-output.cpp
+        pipe-collect-abi.cpp
         type-system.cpp
         type-transition.cpp
         smart-casts-cfg.cpp

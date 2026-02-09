@@ -336,7 +336,7 @@ static ConstValExpression parse_vertex_call_to_compile_time_function(V<ast_funct
   if (f_name == "address") {              // previously, postfix "..."a
     unsigned char data[267];
     parse_any_std_address(str, v_arg->range, &data);
-    return ConstValAddress{td::BitSlice{data, sizeof(data)}.to_hex()};
+    return ConstValAddress{static_cast<std::string>(str), td::BitSlice{data, sizeof(data)}.to_hex()};
   }
 
   if (f_name == "stringCrc32") {          // previously, postfix "..."c
@@ -630,6 +630,11 @@ ConstValExpression eval_and_cache_const_init_val(GlobalConstPtr const_ref) {
   }
   computed_constants_cache[const_ref] = v;
   return v;
+}
+
+ConstValExpression eval_field_default_value(StructFieldPtr field_ref) {
+  tolk_assert(field_ref->default_value);
+  return ConstExpressionEvaluator::eval_any_v_or_fire(field_ref->default_value);
 }
 
 std::vector<td::RefInt256> calculate_enum_members_with_values(EnumDefPtr enum_ref) {

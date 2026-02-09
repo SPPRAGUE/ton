@@ -88,6 +88,7 @@ TolkCompilationResult tolk_proceed(const std::string &entrypoint_filename) {
         .errors = error_collector.flush(),
         .fatal_msg = "",
         .fift_code = "",
+        .abi_json = "",
       };
     }
     // output warnings to console, if any collected
@@ -110,6 +111,7 @@ TolkCompilationResult tolk_proceed(const std::string &entrypoint_filename) {
         .errors = {},
         .fatal_msg = "",
         .fift_code = "",
+        .abi_json = "",
       };
     }
 
@@ -119,11 +121,14 @@ TolkCompilationResult tolk_proceed(const std::string &entrypoint_filename) {
 
     std::ostringstream os_fif;
     pipeline_generate_fif_output(os_fif);
+    std::ostringstream os_abi;
+    pipeline_collect_abi_output(os_abi);
 
     return TolkCompilationResult{
       .errors = {},
       .fatal_msg = "",
       .fift_code = os_fif.str(),
+      .abi_json = os_abi.str(),
     };
 
   } catch (const ThrownParseError& error) {
@@ -133,6 +138,7 @@ TolkCompilationResult tolk_proceed(const std::string &entrypoint_filename) {
       .errors = error_collector.flush(),
       .fatal_msg = "",
       .fift_code = "",
+      .abi_json = "",
     };
 
   } catch (const Fatal& fatal) {
@@ -140,6 +146,7 @@ TolkCompilationResult tolk_proceed(const std::string &entrypoint_filename) {
       .errors = {},
       .fatal_msg = fatal.message,
       .fift_code = "",
+      .abi_json = "",
     };
 
   } catch (const UnexpectedASTNodeKind& error) {
@@ -147,6 +154,7 @@ TolkCompilationResult tolk_proceed(const std::string &entrypoint_filename) {
       .errors = {},
       .fatal_msg = error.message,
       .fift_code = "",
+      .abi_json = "",
     };
   }
 }

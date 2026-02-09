@@ -1231,7 +1231,7 @@ static AsmOp compile_slice_sdbeginsq(std::vector<VarDescr>& res, std::vector<Var
     prefix.unused();
     prefix_len.unused();
     StructData::PackOpcode opcode(prefix.int_const->to_long(), static_cast<int>(prefix_len.int_const->to_long()));
-    return AsmOp::Custom(origin, opcode.format_as_slice() + " SDBEGINSQ", 0, 1);
+    return AsmOp::Custom(origin, opcode.format_as_string(true) + " SDBEGINSQ", 0, 1);
   }
   err("slice.tryStripPrefix can be used only with constant arguments").fire(origin);
 }

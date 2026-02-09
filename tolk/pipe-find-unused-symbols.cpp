@@ -49,7 +49,8 @@ static void mark_global_var_used(GlobalVarPtr glob_ref) {
 
 void OpList::mark_function_used_dfs() const {
   for (const auto& op : list) {
-    if (op->f_sym) {  // for Op::_Call
+    // todo is_really_used flag is not set for inlined functions currently
+    if (op->f_sym) {  // for Op::_Call (noinline)
       mark_function_used(op->f_sym);
     }
     if (op->g_sym) {  // for Op::_GlobVar

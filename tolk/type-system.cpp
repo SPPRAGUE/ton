@@ -525,6 +525,9 @@ std::string TypeDataMapKV::as_human_readable() const {
 }
 
 
+// as_abi_json() implementations are in type-export-json.cpp
+
+
 // --------------------------------------------
 //    replace_children_custom()
 //

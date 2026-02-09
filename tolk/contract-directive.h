@@ -35,6 +35,8 @@ struct ContractDirective {
   AnyTypeV thrownErrors = nullptr;
   AnyTypeV storage = nullptr;
   AnyTypeV storageAtDeployment = nullptr;
+
+  AnyTypeV forceAbiExport = nullptr;
 };
 
 bool is_contract_property_type_node(std::string_view name);
