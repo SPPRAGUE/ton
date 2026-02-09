@@ -77,6 +77,10 @@ SrcFile* AllRegisteredSrcFiles::get_next_unparsed_file() {
   return const_cast<SrcFile*>(all_src_files[++last_parsed_file_id]);
 }
 
+void SrcFile::assign_contract_directive(ContractDirective* contract_directive) {
+  this->contract_directive = contract_directive;
+}
+
 bool SrcFile::is_offset_valid(int offset) const {
   return offset >= 0 && offset < static_cast<int>(text.size());
 }

@@ -152,6 +152,32 @@ struct ChunkInlineComment final : ChunkLexerBase {
   }
 };
 
+// A doc comment, starting from '///' (later allowed only at the top-level, like annotations).
+struct ChunkDocComment final : ChunkLexerBase {
+  bool parse(Lexer* lex) const override {
+    lex->skip_chars(3);
+    if (lex->char_at() == '/') {    // if `////` it's a regular inline comment
+      lex->skip_line();
+      return true;
+    }
+    if (lex->char_at() == ' ') {
+      lex->skip_chars(1);
+    }
+    const char* str_begin = lex->c_str();
+    while (!lex->is_eof() && lex->char_at() != '\n' && lex->char_at() != '\r') {
+      lex->skip_chars(1);
+    }
+
+    std::string_view str_val(str_begin, lex->c_str() - str_begin);  // between '/// ' and '\n'
+    lex->add_token(tok_doc_comment, str_val);
+    while (lex->char_at() == '\n' || lex->char_at() == '\r') {
+      lex->skip_chars(1);
+    }
+
+    return true;
+  }
+};
+
 // A multiline comment, starting from '/*'
 // Note, that nested comments are not supported.
 struct ChunkMultilineComment final : ChunkLexerBase {
@@ -492,6 +518,7 @@ struct TolkLanguageGrammar {
   static void init() {
     trie.add_prefix("//", singleton<ChunkInlineComment>());
     trie.add_prefix("/*", singleton<ChunkMultilineComment>());
+    trie.add_prefix("///", singleton<ChunkDocComment>());
     trie.add_prefix(R"(")", singleton<ChunkString>());
     trie.add_prefix(R"(""")", singleton<ChunkMultilineString>());
     trie.add_prefix("@", singleton<ChunkAnnotation>());
@@ -629,7 +656,11 @@ void Lexer::error(const std::string& err_msg) const {
 }
 
 void Lexer::unexpected(const char* str_expected) const {
-  err("expected {}, got `{}`", str_expected, cur_str()).fire(cur_range());
+  if (cur_token.type == tok_doc_comment) {
+    err("doc comments '///' are allowed only at the top-level; use '//' comments here").fire(SrcRange::span(cur_range(), 3));
+  } else {
+    err("expected {}, got `{}`", str_expected, cur_str()).fire(cur_range());
+  }
 }
 
 void lexer_init() {

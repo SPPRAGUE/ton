@@ -7,6 +7,7 @@ set(TOLK_SOURCE
         ast.cpp
         ast-from-tokens.cpp
         constant-evaluator.cpp
+        contract-directive.cpp
 		gen-entrypoints.cpp
         pack-unpack-api.cpp
         pack-unpack-serializers.cpp

@@ -372,6 +372,7 @@ struct ExprUsagesWhileCollecting {
       std::vector(struct_ref->fields),
       is_variant_of_union ? StructData::PackOpcode(0, 0) : struct_ref->opcode,
       struct_ref->overflow1023_policy,
+      {},
       nullptr,
       nullptr,
       struct_ref->ast_root
@@ -489,7 +490,7 @@ struct ExprUsagesWhileCollecting {
     for (int field_idx = 0; field_idx < static_cast<int>(future_fields.size()); ++field_idx) {
       FutureField f = future_fields[field_idx];
       AnyV v_ident = createV<ast_identifier>(SrcRange::undefined(), "");
-      StructFieldPtr created = new StructFieldData(static_cast<std::string>(f.field_name), v_ident, field_idx, false, false, nullptr, nullptr);
+      StructFieldPtr created = new StructFieldData(static_cast<std::string>(f.field_name), v_ident, field_idx, false, false, nullptr, nullptr, nullptr, {});
       created->mutate()->assign_resolved_type(f.field_type);
       hidden_fields.push_back(created);
       ith_field_action.push_back(f.action);
@@ -501,6 +502,7 @@ struct ExprUsagesWhileCollecting {
       std::move(hidden_fields),
       is_variant_of_union ? StructData::PackOpcode(0, 0) : struct_ref->opcode,
       struct_ref->overflow1023_policy,
+      {},
       nullptr,
       nullptr,
       struct_ref->ast_root

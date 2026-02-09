@@ -182,6 +182,7 @@ void pipeline_check_serialized_fields() {
   for (StructPtr struct_ref : get_all_declared_structs()) {
     for (StructFieldPtr field_ref : struct_ref->fields) {
       check_mapKV_inside_type(field_ref->type_node);
+      check_mapKV_inside_type(field_ref->abi_type_node);
     }
   }
   for (GlobalVarPtr glob_ref : get_all_declared_global_vars()) {

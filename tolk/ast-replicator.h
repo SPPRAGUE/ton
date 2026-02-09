@@ -237,7 +237,7 @@ class ASTReplicator final {
     return createV<ast_parameter_list>(v->range, clone(v->get_params()));
   }
   static V<ast_struct_field> clone(V<ast_struct_field> v) {
-    return createV<ast_struct_field>(v->range, clone(v->get_identifier()), v->is_private, v->is_readonly, v->default_value ? clone(v->default_value) : nullptr, clone(v->type_node));
+    return createV<ast_struct_field>(v->range, clone(v->get_identifier()), v->doc_lines, v->is_private, v->is_readonly, v->default_value ? clone(v->default_value) : nullptr, clone(v->type_node), clone(v->abi_type_node));
   }
   static V<ast_struct_body> clone(V<ast_struct_body> v) {
     return createV<ast_struct_body>(v->range, clone(v->get_all_fields()));
@@ -345,6 +345,7 @@ public:
       clone(v_orig->receiver_type_node),
       clone(v_orig->return_type_node),
       v_orig->genericsT_list ? clone(v_orig->genericsT_list) : nullptr,
+      v_orig->doc_lines,
       v_orig->tvm_method_id,
       v_orig->flags,
       v_orig->inline_mode
@@ -357,6 +358,7 @@ public:
       v_orig->range,
       new_name_ident,
       clone(v_orig->genericsT_list),
+      v_orig->doc_lines,
       v_orig->overflow1023_policy,
       v_orig->has_opcode() ? static_cast<AnyExprV>(clone(v_orig->get_opcode())) : createV<ast_empty_expression>(v_orig->range),
       clone(v_orig->get_struct_body())
@@ -369,7 +371,8 @@ public:
       v_orig->range,
       new_name_ident,
       clone(v_orig->genericsT_list),
-      clone(v_orig->underlying_type_node)
+      clone(v_orig->underlying_type_node),
+      v_orig->doc_lines
     );
   }
 
@@ -384,6 +387,7 @@ public:
       nullptr,
       clone(v_lambda->return_type_node),
       nullptr,
+      DocCommentLines{},
       FunctionData::EMPTY_TVM_METHOD_ID,
       FunctionData::flagIsLambda,
       FunctionInlineMode::notCalculated

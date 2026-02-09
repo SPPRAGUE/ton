@@ -19,6 +19,7 @@
 #include "compilation-errors.h"
 #include "compiler-state.h"
 #include "generics-helpers.h"
+#include "contract-directive.h"
 #include "type-system.h"
 #include <charconv>
 
@@ -432,6 +433,13 @@ public:
       StructFieldPtr field_ref = struct_ref->get_field(i);
       TypePtr declared_type = visitor.finalize_type_node(field_ref->type_node);
       field_ref->mutate()->assign_resolved_type(declared_type);
+      if (field_ref->abi_type_node) {
+        TypePtr abi_client_type = visitor.finalize_type_node(field_ref->abi_type_node);
+        if (declared_type->has_genericT_inside() || abi_client_type->has_genericT_inside()) {
+          err("`@abi.clientType` is not allowed for fields with generics").fire(field_ref->abi_type_node);
+        }
+        field_ref->mutate()->assign_resolved_abi_type(abi_client_type);
+      }
     }
   }
 
@@ -665,6 +673,20 @@ public:
       enum_ref->mutate()->assign_resolved_colon_type(colon_type); // later it will be checked to be intN
     }
   }
+
+  void start_visiting_contract_directive(const SrcFile* file) {
+    type_nodes_visitor = TypeNodesVisitorResolver(nullptr, nullptr, nullptr, false);
+
+    const ContractDirective* d = file->contract_directive;
+
+    if (d->incomingMessages)      finalize_type_node(d->incomingMessages);
+    if (d->incomingExternal)      finalize_type_node(d->incomingExternal);
+    if (d->outgoingMessages)      finalize_type_node(d->outgoingMessages);
+    if (d->emittedEvents)         finalize_type_node(d->emittedEvents);
+    if (d->thrownErrors)          finalize_type_node(d->thrownErrors);
+    if (d->storage)               finalize_type_node(d->storage);
+    if (d->storageAtDeployment)   finalize_type_node(d->storageAtDeployment);
+  }
 };
 
 // prevent recursion like `struct A { field: A }`;
@@ -732,10 +754,10 @@ void pipeline_resolve_types_and_aliases() {
 
   for (const SrcFile* file : G.all_src_files) {
     for (AnyV v : file->ast->as<ast_tolk_file>()->get_toplevel_declarations()) {
-      if (auto v_func = v->try_as<ast_function_declaration>(); v_func && !v_func->is_builtin_function()) {
-        tolk_assert(v_func->fun_ref);
-        if (visitor.should_visit_function(v_func->fun_ref)) {
-          visitor.start_visiting_function(v_func->fun_ref, v_func);
+      if (auto v_fun = v->try_as<ast_function_declaration>()) {
+        // v_fun->fun_ref may be nullptr if it's `get fun` implicitly imported and ignored because of `contract`
+        if (v_fun->fun_ref && visitor.should_visit_function(v_fun->fun_ref)) {
+          visitor.start_visiting_function(v_fun->fun_ref, v_fun);
         }
 
       } else if (auto v_global = v->try_as<ast_global_var_declaration>()) {
@@ -760,6 +782,10 @@ void pipeline_resolve_types_and_aliases() {
 
       } else if (auto v_enum = v->try_as<ast_enum_declaration>()) {
         visitor.start_visiting_enum_members(v_enum->enum_ref);
+
+      } else if (v->try_as<ast_contract_directive>()) {
+        tolk_assert(file->has_contract_directive());
+        visitor.start_visiting_contract_directive(file);
       }
     }
   }

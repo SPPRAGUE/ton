@@ -40,6 +40,10 @@ struct CompilerState {
   std::vector<EnumDefPtr> all_enums;
   AllRegisteredSrcFiles all_src_files;
 
+  // when importing a file with `contract` directive, its `get fun` are not imported, not registered in symtable;
+  // remember their names separately to show a reasonable error on calling, instead of just "undefined symbol"
+  std::vector<std::pair<std::string_view, const SrcFile*>> skipped_imported_getters;
+
   ErrorCollector* error_collector = nullptr;  // when set, errors can be collected instead of thrown
 
   int last_type_id = 128;                            // below 128 reserved for built-in types

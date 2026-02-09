@@ -23,6 +23,8 @@
 
 namespace tolk {
 
+struct ContractDirective;
+
 struct SrcFile {
   struct SrcPosition {
     int line_no;
@@ -41,18 +43,25 @@ struct SrcFile {
   std::string text;                     // file contents loaded into memory, every Token::str_val points inside it
   AnyV ast = nullptr;                   // when a file has been parsed, its ast_tolk_file is kept here
   std::vector<ImportDirective> imports; // to check strictness (can't use a symbol without importing its file)
+  ContractDirective* contract_directive;
 
   SrcFile(int file_id, bool is_stdlib_file, std::string realpath, std::string&& text)
     : file_id(file_id)
     , is_stdlib_file(is_stdlib_file)
     , realpath(std::move(realpath))
-    , text(std::move(text)) { }
+    , text(std::move(text))
+    , contract_directive(nullptr) { }
 
   SrcFile(const SrcFile& other) = delete;
   SrcFile &operator=(const SrcFile&) = delete;
 
   bool is_offset_valid(int offset) const;
   SrcPosition convert_offset(int offset) const;
+
+  SrcFile* mutate() const { return const_cast<SrcFile*>(this); }
+
+  void assign_contract_directive(ContractDirective* contract_directive);
+  bool has_contract_directive() const { return contract_directive != nullptr; }
 
   std::string extract_short_name() const;
   std::string extract_dirname() const;
