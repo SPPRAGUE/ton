@@ -527,8 +527,8 @@ struct AsmOp {
   static AsmOp Parse(AnyV origin, std::string custom_op, int args, int retv = 1);
   static AsmOp Tuple(AnyV origin, int a);
   static AsmOp UnTuple(AnyV origin, int a);
-  static AsmOp Comment(AnyV origin, std::string comment) {
-    return AsmOp(a_comment, origin, 255, 255, std::move(comment));
+  static AsmOp Comment(std::string comment) {
+    return AsmOp(a_comment, nullptr, 255, 255, std::move(comment));
   }
 };
 
@@ -878,20 +878,20 @@ struct Stack {
     }
     tolk_assert(i >= 0 && i < depth() && "invalid stack reference");
   }
-  void issue_pop(AnyV origin, int i);
-  void issue_push(AnyV origin, int i);
-  void issue_xchg(AnyV origin, int i, int j);
-  void drop_vars_except(AnyV origin, const VarDescrList& var_info);
+  void issue_pop(int i);
+  void issue_push(int i);
+  void issue_xchg(int i, int j);
+  void drop_vars_except(const VarDescrList& var_info);
   void push_new_var(var_idx_t var_idx);
   void push_new_const(var_idx_t var_idx, const_idx_t const_idx);
   void assign_var(var_idx_t new_idx, var_idx_t old_idx);
-  void do_copy_var(AnyV origin, var_idx_t new_idx, var_idx_t old_idx);
-  void enforce_state(AnyV origin, const StackLayoutVars& req_stack);
-  void rearrange_top(AnyV origin, const StackLayoutVars& top, std::vector<bool> last);
-  void rearrange_top(AnyV origin, var_idx_t top_var_idx, bool last);
+  void do_copy_var(var_idx_t new_idx, var_idx_t old_idx);
+  void enforce_state(const StackLayoutVars& req_stack);
+  void rearrange_top(const StackLayoutVars& top, std::vector<bool> last);
+  void rearrange_top(var_idx_t top_var_idx, bool last);
   void merge_const(const Stack& req_stack);
-  void merge_state(AnyV origin, const Stack& req_stack);
-  void save_stack_comment(AnyV origin) const;
+  void merge_state(const Stack& req_stack);
+  void save_stack_comment() const;
   void apply_wrappers_if_retalt(AnyV origin, int callxargs_count);
 };
 

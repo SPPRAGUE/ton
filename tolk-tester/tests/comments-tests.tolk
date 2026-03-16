@@ -77,8 +77,8 @@ fun main() {
 @fif_codegen
 """
   demo_call_def() PROC:<{       //  x
-    // 26: var x2 = x * x
     DUP                         //  x x
+    // 26: var x2 = x * x
     MUL                         //  x2
     // 21: fun add(x: int, y: int = 0)
     0 PUSHINT                   //  x2 '3=0

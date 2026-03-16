@@ -121,10 +121,11 @@ static void output_asm_code_for_fun(std::ostream& os, FunctionPtr fun_ref, std::
       continue;
     }
 
-    tolk_assert(op.origin);
-    SrcRange range = op.origin->range;
-    // it's `}>ELSE<{` or similar, not actually an asm instruction
-    bool need_line_comment = range.is_valid() && !op.op.starts_with("}>");
+    SrcRange range = op.origin ? op.origin->range : SrcRange::undefined();
+    // origin = nullptr is for DROP, NIP, and other stack-alignment
+    // (they don't have actual "origin" of execution; assigning previous/next produce spurious jumps in debugger)
+    // also, `}>ELSE<{` and similar don't have origin, it's not actually an asm instruction
+    bool need_line_comment = range.is_valid();
 
     if (need_line_comment && print_line_comments) {
       line_output.output_first_line(os, indent, range);
