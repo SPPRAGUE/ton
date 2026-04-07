@@ -1451,8 +1451,12 @@ static std::vector<var_idx_t> process_function_call(V<ast_function_call> v, Code
   }
   for (int i = delta_self + v->get_num_args(); i < fun_ref->get_num_params(); ++i) {
     LocalVarPtr param_ref = &fun_ref->get_param(i);
-    tolk_assert(param_ref->has_default_value());
     AnyExprV dv = param_ref->default_value;
+    if (!dv) {
+      tolk_assert(param_ref->declared_type == TypeDataVoid::create());
+      dv = createV<ast_empty_expression>(call_origin->range);
+      dv->mutate()->assign_inferred_type(TypeDataVoid::create());
+    }
     if (auto dv_call = dv->try_as<ast_function_call>()) {
       // reflect.sourceLocation() as default — create a new AST vertex with range = call site
       if (dv_call->fun_maybe->name == "reflect.sourceLocation" || dv_call->fun_maybe->name == "reflect.sourceLocationAsString") {

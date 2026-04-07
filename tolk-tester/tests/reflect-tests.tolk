@@ -123,6 +123,29 @@ fun uniqueTypeIdx() {
     )
 }
 
+@noinline
+fun myFormat<T1 = void, T2 = void>(fmt: string, arg1: T1, arg2: T2) {
+    return (
+        reflect.typeNameOfObject(arg1),
+        reflect.typeNameOfObject(arg2),
+    )
+}
+
+@method_id(112)
+fun optionalVoidArgs() {
+    val f1 = myFormat("hello");
+    val f2 = myFormat("value is {}", 42);
+    val f3 = myFormat("pair is {} and {}", "str", beginCell());
+    return (
+        f1.0.equalTo("void"),
+        f1.1.equalTo("void"),
+        f2.0.equalTo("int"),
+        f2.1.equalTo("void"),
+        f3.0.equalTo("string"),
+        f3.1.equalTo("builder"),
+    )
+}
+
 fun main() {
     __expect_type(reflect.sourceLocation(), "SourceLocation");
 }
@@ -137,4 +160,5 @@ fun main() {
 @testcase | 107 | | 0 0 -1
 @testcase | 110 | | 1 9999 0 4 101 9999 0 4
 @testcase | 111 | | 0 1 4 12 12 13
+@testcase | 112 | | -1 -1 -1 -1 -1 -1
  */
