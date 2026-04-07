@@ -658,6 +658,34 @@ bool Op::generate_code_step(Stack& stack, const OpList& parent_ops, size_t self_
       stack.s.resize(k);
       return true;
     }
+    case _SetContArgs: {
+      // right = [captured_vals..., continuation], left = [result_continuation]
+      // rearrange stack so captured values and continuation are on top, then SETCONTARGS
+      if (disabled()) {
+        return true;
+      }
+      tolk_assert(right.size() >= 2 && left.size() == 1);
+      std::vector<bool> last;
+      last.reserve(right.size());
+      for (var_idx_t x : right) {
+        last.push_back(var_info[x] && var_info[x]->is_last());
+      }
+      stack.rearrange_top(right, std::move(last));
+      int k = (int)stack.depth() - (int)right.size();
+      tolk_assert(k >= 0);
+      stack.s.resize(k);
+
+      int r = (int)right.size() - 1;
+      if (r <= 15) {
+        stack.o << AsmOp::Custom(origin, std::to_string(r) + " -1 SETCONTARGS", r + 1, 1);
+      } else {
+        stack.o << AsmOp::Custom(origin, std::to_string(r) + " PUSHINT", 0, 1);
+        stack.o << AsmOp::Custom(origin, "-1 PUSHINT", 0, 1);
+        stack.o << AsmOp::Custom(origin, "SETCONTVARARGS", r + 3, 1);
+      }
+      stack.push_new_var(left[0]);
+      return true;
+    }
     case _If: {
       if (block0.is_empty_block() && block1.is_empty_block()) {
         return true;

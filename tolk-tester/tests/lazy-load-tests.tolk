@@ -1069,6 +1069,25 @@ fun demo160() {
     }
 }
 
+@method_id(161)
+fun demo161() {
+    var p = lazy Point.fromSlice("0102".hexToSlice());
+    __expect_lazy("[p] load x y");
+    var f = fun() {
+        return p.x;
+    };
+    return f();
+}
+
+@method_id(162)
+fun demo162(delta: int) {
+    var f = fun(more: int) {
+        var p = lazy Point.fromSlice("01".hexToSlice());
+        return p.x + delta + more;
+    };
+    return f(delta);
+}
+
 
 @method_id(200)
 fun demo200() {
@@ -1889,6 +1908,8 @@ fun main() {
 @testcase | 158 |                 | 2 10 255
 @testcase | 159 |                 | -1 -1 31 -1 31
 @testcase | 160 |                 | 777
+@testcase | 161 |                 | 1
+@testcase | 162 | 8               | 17
 
 @testcase | 200 |                 | 1
 @testcase | 201 |                 | 1 2 -1

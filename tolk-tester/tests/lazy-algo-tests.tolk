@@ -734,6 +734,18 @@ fun algo55() {
     })
 }
 
+fun algo56() {
+    val p1 = lazy Point3d.fromSlice(S0);
+    __expect_lazy("[p1] load x y z");
+    return fun() {
+        val p2 = lazy Point3d.fromSlice(S0);
+        __expect_lazy("[p2] load x y z");
+        return fun() {
+            p1.x + p2.z
+        }
+    }
+}
+
 
 fun algo100() {
     var o = lazy AOrB.fromSlice(S0);

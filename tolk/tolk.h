@@ -283,6 +283,7 @@ struct Op {
     _IntConst,
     _GlobVar,
     _SetGlob,
+    _SetContArgs,
     _Import,
     _Return,
     _Tuple,
@@ -1016,6 +1017,10 @@ struct CodeBlob {
     op.g_sym = g;
     op.set_impure_flag();
     op.debug_mark = DebugMarkSetGlob{g, op.right};
+  }
+  void add_setcontargs(AnyV origin, std::vector<var_idx_t> dst, std::vector<var_idx_t> src) {
+    Op& op = cur_ops->push_back(std::make_unique<Op>(origin, Op::_SetContArgs, std::move(dst)));
+    op.right = std::move(src);
   }
   void add_import_fun_params(AnyV origin, std::vector<var_idx_t> ir_params, FunctionPtr f_entered, DebugMarkInfo mark_enter_fun) {
     Op& op = cur_ops->push_back(std::make_unique<Op>(origin, Op::_Import, std::move(ir_params)));

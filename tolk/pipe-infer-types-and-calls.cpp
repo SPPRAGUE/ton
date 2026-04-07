@@ -1590,13 +1590,24 @@ class InferTypesAndCallsAndFieldsVisitor final {
       return_type = h_callable->return_type;
     }
 
+    std::vector<TypePtr> full_params_types;
+    full_params_types.reserve(v->captured_vars.size() + params_types.size());
+    for (LocalVarPtr captured_var_ref : v->captured_vars) {
+      TypePtr captured_type = flow.smart_cast_or_original(SinkExpression(captured_var_ref), captured_var_ref->declared_type);
+      if (captured_var_ref->is_lateinit() && captured_type == TypeDataNotInferred::create()) {
+        err_using_lateinit_variable_uninitialized(captured_var_ref->name).fire(v, cur_f);
+      }
+      full_params_types.push_back(captured_type);
+    }
+    full_params_types.insert(full_params_types.end(), params_types.begin(), params_types.end());
+
     // instantiating lambdas is very similar to generic functions, also done at type inferring;
     tolk_assert(v->lambda_ref == nullptr);
-    FunctionPtr lambda_ref = instantiate_lambda_function(v, cur_f, params_types, return_type);
+    FunctionPtr lambda_ref = instantiate_lambda_function(v, cur_f, full_params_types, return_type);
 
     // lambda_ref already travelled the pipeline including type inferring
     v->mutate()->assign_lambda_ref(lambda_ref);
-    assign_inferred_type(v, lambda_ref->inferred_full_type);
+    assign_inferred_type(v, TypeDataFunCallable::create(std::move(params_types), lambda_ref->inferred_return_type));
     return ExprFlow(std::move(flow), used_as_condition);
   }
 

@@ -1743,9 +1743,27 @@ static std::vector<var_idx_t> process_object_literal(V<ast_object_literal> v, Co
 
 static std::vector<var_idx_t> process_lambda_fun(V<ast_lambda_fun> v, CodeBlob& code, TypePtr target_type) {
   tolk_assert(v->lambda_ref);
-  std::vector rvect = code.create_tmp_var(v->lambda_ref->inferred_full_type, v, "(glob-var-lambda)");
-  code.add_read_glob_var(v, rvect, v->lambda_ref);
-  return transition_to_target_type(std::move(rvect), code, target_type, v);
+  // create the continuation referencing the lambda function
+  std::vector ir_cont = code.create_tmp_var(v->lambda_ref->inferred_full_type, v, "(glob-var-lambda)");
+  code.add_read_glob_var(v, ir_cont, v->lambda_ref);
+
+  // bind captured variables: right = [captured_ir_vars..., orig_cont], left = [result_cont]
+  if (!v->captured_vars.empty()) {
+    std::vector<var_idx_t> ir_right;
+    for (int i = 0; i < static_cast<int>(v->captured_vars.size()); ++i) {
+      LocalVarPtr outer_var = v->captured_vars[i];
+      TypePtr captured_type = v->lambda_ref->get_param(i).declared_type;
+      std::vector ir_captured = transition_to_target_type(std::vector(outer_var->ir_idx), code, outer_var->declared_type, captured_type, v);
+      ir_right.insert(ir_right.end(), ir_captured.begin(), ir_captured.end());
+    }
+
+    if (!ir_right.empty()) {
+      ir_right.push_back(ir_cont[0]);
+      code.add_setcontargs(v, ir_cont, std::move(ir_right));
+    }
+  }
+
+  return transition_to_target_type(std::move(ir_cont), code, target_type, v);
 }
 
 static std::vector<var_idx_t> process_int_const(V<ast_int_const> v, CodeBlob& code, TypePtr target_type) {
