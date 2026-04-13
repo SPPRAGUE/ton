@@ -270,10 +270,10 @@ class AssignSymInsideFunctionVisitor final : public ASTVisitorFunctionBody {
     if (v == cur_f->ast_root->as<ast_function_declaration>()->get_body()) {
       for (int i = 0; i < cur_f->get_num_params(); ++i) {
         LocalVarPtr param_ref = &cur_f->parameters[i];
-        current_scope.add_local_var(param_ref);
         if (param_ref->has_default_value()) {
           parent::visit(param_ref->default_value);
         }
+        current_scope.add_local_var(param_ref);
       }
     }
 

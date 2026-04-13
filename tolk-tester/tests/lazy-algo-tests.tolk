@@ -1384,7 +1384,6 @@ fun algo255() {
             __expect_lazy("[p] load x");
             return p.x;
         }
-        else => throw 123
     }
 }
 
@@ -1452,7 +1451,7 @@ fun algo302() {
 @method_id(303)
 fun algo303() {
     var c = Point{x:1,y:2}.toCell();
-    var o = lazy c.load();
+    var o = lazy Cell<Point>.load(c);
     __expect_lazy("[o] load x y");
     return o;
 }

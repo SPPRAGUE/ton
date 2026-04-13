@@ -639,6 +639,15 @@ fun test47() {
     )
 }
 
+@method_id(148)
+fun test48() {
+    var s = beginCell().storeUint(1, 8).endCell().beginParse();
+    slice.skipBits(mutate s, 1);
+    var b = beginCell();
+    val b2 = builder.storeAny<int32>(mutate b, 1);
+    return (s.remainingBitsCount(), b2.bitsCount());
+}
+
 fun main(): int {
     return 0;
 }
@@ -691,6 +700,7 @@ fun main(): int {
 @testcase | 144 |     | 0 0 0 0 -1 3820012610 -1 0 0
 @testcase | 146 |     | 64898 64898 30460 59911 15354 54467 54467 54467 15533 16598 20076 64898 64898 30460 11765
 @testcase | 147 |     | -1 0 0 0 -1 0 0 -1 0 -1 0 -1 0 777 -1 -1 -1
+@testcase | 148 |     | 7 32
 
 We test that consequtive storeInt/storeUint with constants are joined into a single number
 

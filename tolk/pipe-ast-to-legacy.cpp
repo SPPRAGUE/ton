@@ -660,18 +660,17 @@ std::vector<var_idx_t> pre_compile_is_type(CodeBlob& code, TypePtr expr_type, Ty
     // `int` is `int` / `int` is `builder`, it's compile-time, either 0, or -1
     bool types_eq = expr_type->equal_to(cmp_type);
     code.add_int_const(origin, ir_result, td::make_refint(types_eq ? -1 : 0));
+  } else if (!lhs_union->has_variant_equal_to(cmp_type)) {
+    // at runtime, union tags store type_id, and aliases with the same underlying type share it;
+    // keep the lowering aligned with type-level `is`: distinct aliases are distinct variants
+    code.add_int_const(origin, ir_result, td::make_refint(0));
   } else if (lhs_union->is_primitive_nullable() && cmp_type == TypeDataNullLiteral::create()) {
     // `int?` is `null` for primitive 1-slot nullables, they hold either value of TVM NULL, no extra union tag slot
     code.add_call(origin, ir_result, expr_ir_idx, isnull_sym);
   } else if (lhs_union->is_primitive_nullable()) {
-    // `int?` is `int` (check for null actually) / `int?` is `builder` (compile-time false actually)
-    bool cant_happen = lhs_union->or_null->get_type_id() != cmp_type->get_type_id();
-    if (cant_happen) {
-      code.add_int_const(origin, ir_result, td::make_refint(0));
-    } else {
-      code.add_call(origin, ir_result, expr_ir_idx, isnull_sym);
-      code.add_call(origin, ir_result, ir_result, not_sym);
-    }
+    // `int?` is `int` (check for null and reverse)
+    code.add_call(origin, ir_result, expr_ir_idx, isnull_sym);
+    code.add_call(origin, ir_result, ir_result, not_sym);
   } else {
     // `int | slice` is `int`, check type id
     std::vector ir_typeid = code.create_tmp_var(TypeDataInt::create(), origin, "(type-id)");
@@ -736,6 +735,12 @@ static std::vector<var_idx_t> gen_compile_time_code_instead_of_fun_call(CodeBlob
 }
 
 std::vector<var_idx_t> gen_inline_fun_call_in_place(CodeBlob& code, TypePtr ret_type, AnyV origin, FunctionPtr f_inlined, AnyExprV self_obj, bool is_before_immediate_return, const std::vector<std::vector<var_idx_t>>& vars_per_arg) {
+  static thread_local std::vector<FunctionPtr> called_stack;
+  if (std::find(called_stack.begin(), called_stack.end(), f_inlined) != called_stack.end()) {
+    std::string_view postfix = f_inlined->is_packToBuilder() || f_inlined->is_unpackFromSlice() ? " and leads to infinite serialization" : "";
+    err("function `{}` is recursive{}", f_inlined, postfix).fire(f_inlined->ident_anchor, f_inlined);
+  }
+
   tolk_assert(vars_per_arg.size() == f_inlined->parameters.size());
   std::vector<var_idx_t> ir_params;
   for (int i = 0; i < f_inlined->get_num_params(); ++i) {
@@ -762,6 +767,7 @@ std::vector<var_idx_t> gen_inline_fun_call_in_place(CodeBlob& code, TypePtr ret_
   code.inline_rvect_out = &rvect_call;
   code.inlining_before_immediate_return = is_before_immediate_return;
   code.fun_ref = f_inlined;
+  called_stack.push_back(f_inlined);
   // specially handle `point.getX()` if point is a lazy var: to make `self.toCell()` work and `self.x` asserted;
   // (only methods preserve lazy, `getXOf(point)` does not, though theoretically can be done)
   const LazyVariableLoadedState* lazy_receiver = self_obj ? code.get_lazy_variable(self_obj) : nullptr;
@@ -809,6 +815,7 @@ std::vector<var_idx_t> gen_inline_fun_call_in_place(CodeBlob& code, TypePtr ret_
   ClearStateAfterInlineInPlace visitor;
   visitor.start_visiting_function(f_inlined, v_ast_root);
 
+  called_stack.pop_back();
   code.fun_ref = backup_cur_fun;
   code.inline_rvect_out = backup_outer_inline;
   code.inline_return_stmt_out = backup_outer_return_stmt;
@@ -1179,7 +1186,7 @@ static std::vector<var_idx_t> process_lazy_operator(V<ast_lazy_operator> v, Code
     std::vector passed_slice = pre_compile_expr(v_call->get_arg(0)->get_expr(), code);
     code.add_let(v, ir_slice, std::move(passed_slice));
     has_passed_options = v_call->get_num_args() == 2;
-  } else if (f_name == "T.fromCell") {
+  } else if (f_name == "T.fromCell" || (f_name == "Cell<T>.load" && !v_call->dot_obj_is_self)) {
     std::vector ir_cell = pre_compile_expr(v_call->get_arg(0)->get_expr(), code);
     code.add_call(v, ir_slice, ir_cell, lookup_function("cell.beginParse"));
     has_passed_options = v_call->get_num_args() == 2;
@@ -1513,7 +1520,7 @@ static std::vector<var_idx_t> process_function_call(V<ast_function_call> v, Code
   // detect what a function really returns from the stack perspective;
   // for instance, `fun f(mutate x: int): slice` puts `(int, slice)` onto a stack
   TypePtr op_call_type = v->inferred_type;
-  if (v->get_self_obj() && fun_ref->does_return_self() && !fun_ref->does_mutate_self()) {
+  if (fun_ref->does_return_self() && !fun_ref->does_mutate_self()) {
     op_call_type = TypeDataVoid::create();    // `return self` actually puts nothing onto a stack
   }
   if (fun_ref->has_mutate_params()) {
@@ -1523,7 +1530,7 @@ static std::vector<var_idx_t> process_function_call(V<ast_function_call> v, Code
         types_list.push_back(fun_ref->parameters[i].declared_type);
       }
     }
-    bool self_already_added = v->get_self_obj() && fun_ref->does_return_self();
+    bool self_already_added = fun_ref->does_return_self();
     if (!self_already_added) {
       types_list.push_back(v->inferred_type);
     }
@@ -1572,11 +1579,11 @@ static std::vector<var_idx_t> process_function_call(V<ast_function_call> v, Code
 
   // `beginCell().storeUint()` / `sb.append()` / etc. — dot call for methods returning `self`
   TypePtr rvect_type = v->inferred_type;
-  if (v->get_self_obj() && fun_ref->does_return_self()) {
+  if (fun_ref->does_return_self()) {
     int orig_self_i = rev_arg_order.empty() ? 0 : rev_arg_order[0];
     rvect = vars_per_arg[orig_self_i];
     if (fun_ref->does_mutate_self()) {
-      if (obj_leftmost == nullptr && is_valid_lvalue_path(v->get_self_obj())) {
+      if (obj_leftmost == nullptr && v->get_self_obj() && is_valid_lvalue_path(v->get_self_obj())) {
         obj_leftmost = v->get_self_obj();
       }
       if (lval_ctx && obj_leftmost) {
@@ -1636,7 +1643,7 @@ static std::vector<var_idx_t> process_square_brackets(V<ast_square_brackets> v, 
   return transition_to_target_type(std::move(rvect), code, target_type, v);
 }
 
-static std::vector<var_idx_t> process_object_literal_shuffled(V<ast_object_literal> v, CodeBlob& code, TypePtr target_type, LValContext* lval_ctx) {
+static std::vector<var_idx_t> process_object_literal_shuffled(V<ast_object_literal> v, CodeBlob& code, TypePtr target_type) {
   // creating an object like `Point { y: getY(), x: getX() }`, where fields order doesn't match declaration;
   // as opposed to a non-shuffled version `{x:..., y:...}`, we should at first evaluate fields as they created,
   // and then to place them in a correct order
@@ -1650,7 +1657,7 @@ static std::vector<var_idx_t> process_object_literal_shuffled(V<ast_object_liter
     tensor_items.push_back(v_field->get_init_val());
     target_types.push_back(field_ref->declared_type);
   }
-  std::vector literal_rvect = pre_compile_tensor(code, tensor_items, lval_ctx, target_types);
+  std::vector literal_rvect = pre_compile_tensor(code, tensor_items, nullptr, target_types);
 
   std::vector rvect = code.create_tmp_var(TypeDataStruct::create(v->struct_ref), v, "(object)");
   int stack_offset = 0;
@@ -1686,7 +1693,7 @@ static std::vector<var_idx_t> process_object_literal_shuffled(V<ast_object_liter
   return transition_to_target_type(std::move(rvect), code, target_type, v);
 }
 
-static std::vector<var_idx_t> process_object_literal(V<ast_object_literal> v, CodeBlob& code, TypePtr target_type, LValContext* lval_ctx) {
+static std::vector<var_idx_t> process_object_literal(V<ast_object_literal> v, CodeBlob& code, TypePtr target_type) {
   // an object (an instance of a struct) is actually a tensor at low-level
   // for example, `struct User { id: int; name: slice; }` occupies 2 slots
   // fields of a tensor are placed in order of declaration (in a literal they might be shuffled)
@@ -1703,7 +1710,7 @@ static std::vector<var_idx_t> process_object_literal(V<ast_object_literal> v, Co
   // as passing of calling `f(x,y)` with asm arg_order, is it safe to avoid SWAP
   if (are_fields_shuffled && !CheckReorderingForAsmArgOrderIsSafeVisitor::is_safe_to_reorder(v->get_body())) {
     // okay, we have `{y: getY(), x: getX()}` / `{y: v += 1, x: v}`, evaluate them in created order
-    return process_object_literal_shuffled(v, code, target_type, lval_ctx);
+    return process_object_literal_shuffled(v, code, target_type);
   }
 
   std::vector<AnyExprV> tensor_items;
@@ -1737,7 +1744,7 @@ static std::vector<var_idx_t> process_object_literal(V<ast_object_literal> v, Co
     origin_marks.push_back(v_field_at_dot);
     origin_overrides.push_back(v_field_at_dot ? nullptr : v);
   }
-  std::vector rvect = pre_compile_tensor(code, tensor_items, lval_ctx, target_types, origin_marks, origin_overrides);
+  std::vector rvect = pre_compile_tensor(code, tensor_items, nullptr, target_types, origin_marks, origin_overrides);
   return transition_to_target_type(std::move(rvect), code, target_type, v);
 }
 
@@ -1932,7 +1939,7 @@ std::vector<var_idx_t> pre_compile_expr(AnyExprV v, CodeBlob& code, TypePtr targ
     case ast_square_brackets:
       return process_square_brackets(v->as<ast_square_brackets>(), code, target_type, lval_ctx);
     case ast_object_literal:
-      return process_object_literal(v->as<ast_object_literal>(), code, target_type, lval_ctx);
+      return process_object_literal(v->as<ast_object_literal>(), code, target_type);
     case ast_lambda_fun:
       return process_lambda_fun(v->as<ast_lambda_fun>(), code, target_type);
     case ast_int_const:
@@ -2006,6 +2013,12 @@ static void process_assert_statement(V<ast_assert_statement> v, CodeBlob& code) 
     std::vector ir_thrown_code = pre_compile_expr(v->get_thrown_code(), code);
     std::vector ir_cond = pre_compile_expr(v->get_cond(), code);
     tolk_assert(ir_cond.size() == 1 && ir_thrown_code.size() == 1);
+
+    if (v->get_cond()->is_always_false) {
+      // control flow at type inferring treats this assert as terminal; lower it as a terminal throw too
+      code.add_call(v, {}, std::move(ir_thrown_code), lookup_function("__throw"));
+      return;
+    }
 
     std::vector args_throwifnot = { ir_thrown_code[0], ir_cond[0] };
     code.add_call(v, {}, std::move(args_throwifnot), lookup_function("__throw_ifnot"));

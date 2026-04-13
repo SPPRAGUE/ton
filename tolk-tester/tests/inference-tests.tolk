@@ -169,6 +169,13 @@ fun test12(): int {
     return 1;
 }
 
+fun test13(c: cell) {
+    while (c == null) {
+        var x = c;
+        __expect_type(x, "never");
+    }
+}
+
 
 fun main() {
     return 0;

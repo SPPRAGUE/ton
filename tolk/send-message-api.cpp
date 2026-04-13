@@ -395,9 +395,7 @@ std::vector<var_idx_t> generate_createMessage(FunctionPtr called_f, CodeBlob& co
   }
 
   // store body; previously, we've calculated whether to store is as a ref or not
-  if (body_size.max_bits == 0 && body_size.max_refs == 0) {
-    tolk_assert(ir_body.empty());
-  } else if (body_store_as_ref) {
+  if (body_store_as_ref) {
     tolk_assert(ir_body.size() == 1);   // it was either an input cell or a automatically created one
     ctx.storeRef(ir_body[0]);
   } else {
@@ -528,11 +526,7 @@ std::vector<var_idx_t> generate_createExternalLogMessage(FunctionPtr called_f, C
   ctx.storeUint(ir_zero, 64 + 32 + 1);
 
   // fill bit `body: (Either X ^X)` and store body
-  if (body_size.max_bits == 0 && body_size.max_refs == 0) {
-    // missing body of type `void`
-    tolk_assert(ir_body.empty());
-    ctx.storeUint(ir_zero, 1);
-  } else if (body_store_as_ref) {
+  if (body_store_as_ref) {
     tolk_assert(ir_body.size() == 1);
     ctx.storeUint(ir_one, 1);
     ctx.storeRef(ir_body[0]);

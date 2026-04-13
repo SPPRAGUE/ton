@@ -163,6 +163,11 @@ static void handle_possible_compiler_internal_call(FunctionPtr cur_f, V<ast_func
   FunctionPtr fun_ref = v->fun_maybe;
   tolk_assert(fun_ref && fun_ref->is_builtin());
 
+  // prohibit calling built-ins `__dict.XXX`, `builder.__storeVarInt`, etc.
+  if (!fun_ref->name.starts_with("__expect")) {
+    err("internal compiler functions are not allowed to be called").fire(v, cur_f);
+  }
+
   if (fun_ref->is_instantiation_of_generic_function() && fun_ref->base_fun_ref->name == "__expect_type" && v->get_num_args() == 2) {
     // __expect_type(expr, "...") is a compiler built-in for testing, it's not indented to be called by users
     auto v_expected_str = v->get_arg(1)->get_expr()->try_as<ast_string_const>();
@@ -477,7 +482,7 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
       }
     }
 
-    if (fun_ref->is_builtin() && fun_ref->name[0] == '_') {
+    if (fun_ref->is_builtin() && fun_ref->name.find("__") != std::string::npos) {
       handle_possible_compiler_internal_call(cur_f, v);
     }
   }
@@ -534,6 +539,16 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
         process_assignment_lhs(lhs_tensor->get_item(i), rhs_type_tensor->items[i], rhs_tensor_maybe ? rhs_tensor_maybe->get_item(i) : nullptr);
       }
       return;
+    }
+
+    // `[v1, v2] = rhs` / `var [v1, v2] = rhs` (rhs may be `[1,2]` or `shapedTupleVar`)
+    if (auto lhs_shaped = lhs->try_as<ast_square_brackets>()) {
+      const TypeDataShapedTuple* rhs_type_shaped = rhs_type->unwrap_alias()->try_as<TypeDataShapedTuple>();
+      if (!rhs_type_shaped || lhs_shaped->size() != rhs_type_shaped->size()) {
+        err("can not assign `{}` to `[...]`", rhs_type).collect(err_loc, cur_f);
+        return;
+      }
+      // i-th component compatibility will be checked automatically below
     }
 
     // here is `v = rhs` (just assignment, not `var v = rhs`) / `a.0 = rhs` / `getObj(z=f()).0 = rhs` etc.
@@ -894,7 +909,7 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
 
 public:
   bool should_visit_function(FunctionPtr fun_ref) override {
-    return fun_ref->is_code_function() && !fun_ref->is_generic_function();
+    return !fun_ref->is_generic_function();
   }
 
   void on_exit_function(V<ast_function_declaration> v_function) override {
@@ -917,10 +932,10 @@ public:
     }
 
     // methods with special names defined in user code that must have an exact prototype
-    if (cur_f->is_method() && cur_f->method_name == "packToBuilder") {
+    if (cur_f->is_packToBuilder()) {
       check_declared_packToBuilder(cur_f);
     }
-    if (cur_f->is_method() && cur_f->method_name == "unpackFromSlice") {
+    if (cur_f->is_unpackFromSlice()) {
       check_declared_unpackFromSlice(cur_f);
     }
   }

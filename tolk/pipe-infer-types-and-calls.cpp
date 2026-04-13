@@ -215,6 +215,26 @@ static TypePtr try_pick_instantiated_generic_from_hint(TypePtr hint, AliasDefPtr
   return nullptr;
 }
 
+// combines two functions above: having `v is Wrapper` or `match (v) { Wrapper => ... }`,
+// determine that it's actually `Wrapper<int>`;
+// returns nullptr if generic T can't be detected; otherwise, returns a non-generic type
+static TypePtr pick_exact_type_if_generics_omitted(TypePtr expr_type, TypePtr cmp_type) {
+  if (const auto* t_struct = cmp_type->try_as<TypeDataStruct>(); t_struct && t_struct->struct_ref->is_generic_struct()) {
+    // `Wrapper => ...`, detect T based on type of subject (`Wrapper<int> | int` => `Wrapper<int>`)
+    return try_pick_instantiated_generic_from_hint(expr_type, t_struct->struct_ref);
+  }
+  if (const auto* t_alias = cmp_type->try_as<TypeDataAlias>(); t_alias && t_alias->alias_ref->is_generic_alias()) {
+    // `WrapperAlias => ...`, detect T similar to structures
+    return try_pick_instantiated_generic_from_hint(expr_type, t_alias->alias_ref);
+  }
+  // we could also support auto-inferring type arguments for `map => ...` and `array => ...`,
+  // but it's more complicated than useful; maybe, think of simplifying "try_pick_*" in the future
+  if (cmp_type->has_genericT_inside()) {
+    return nullptr;
+  }
+  return cmp_type;
+}
+
 // given `p.create` (called_receiver = Point, called_name = "create")
 // look up a corresponding method (it may be `Point.create` / `Point?.create` / `T.create`)
 static std::pair<FunctionPtr, GenericsSubstitutions> choose_only_method_to_call(FunctionPtr cur_f, SrcRange range, TypePtr called_receiver, std::string_view called_name) {
@@ -770,36 +790,13 @@ class InferTypesAndCallsAndFieldsVisitor final {
     ExprFlow after_expr = infer_any_expr(v->get_expr(), std::move(flow), false);
     assign_inferred_type(v, TypeDataBool::create());
 
-    TypePtr rhs_type = v->type_node->resolved_type;
-
-    if (const auto* t_struct = rhs_type->try_as<TypeDataStruct>(); t_struct && t_struct->struct_ref->is_generic_struct()) {
-      // `v is Wrapper`, detect T based on type of v (`Wrapper<int> | int` => `Wrapper<int>`)
-      if (TypePtr inst_rhs_type = try_pick_instantiated_generic_from_hint(v->get_expr()->inferred_type, t_struct->struct_ref)) {
-        rhs_type = inst_rhs_type;
-        v->type_node->mutate()->assign_resolved_type(rhs_type);
-      } else {
-        err_cannot_deduce_genericT(t_struct).fire(v->type_node, cur_f);
-      }
-    }
-    if (const auto* t_alias = rhs_type->try_as<TypeDataAlias>(); t_alias && t_alias->alias_ref->is_generic_alias()) {
-      // `v is WrapperAlias`, detect T similar to structures
-      if (TypePtr inst_rhs_type = try_pick_instantiated_generic_from_hint(v->get_expr()->inferred_type, t_alias->alias_ref)) {
-        rhs_type = inst_rhs_type;
-        v->type_node->mutate()->assign_resolved_type(rhs_type);
-      } else {
-        err_cannot_deduce_genericT(t_alias).fire(v->type_node, cur_f);
-      }
-    }
-    // we could also support auto-inferring type arguments for `v is map` and `v is array`,
-    // but it's more complicated than useful; maybe, think of simplifying "try_pick_*" in the future
-    if (const auto* t_map = rhs_type->try_as<TypeDataMapKV>(); t_map && t_map->has_genericT_inside()) {
-      err_cannot_deduce_genericT(rhs_type).fire(v->type_node, cur_f);
-    }
-    if (const auto* t_array = rhs_type->try_as<TypeDataArray>(); t_array && t_array->has_genericT_inside()) {
-      err_cannot_deduce_genericT(rhs_type).fire(v->type_node, cur_f);
-    }
-
     TypePtr expr_type = v->get_expr()->inferred_type;
+    TypePtr rhs_type = pick_exact_type_if_generics_omitted(expr_type, v->type_node->resolved_type);
+    if (!rhs_type) {      // `v is Wrapper` but can't detect T for `Wrapper<T>`
+      err_cannot_deduce_genericT(v->type_node->resolved_type).fire(v->type_node, cur_f);
+    }
+    v->type_node->mutate()->assign_resolved_type(rhs_type);
+
     TypePtr non_rhs_type = calculate_type_subtract_rhs_type(expr_type, rhs_type);
     if (expr_type->equal_to(rhs_type)) {                          // `expr is <type>` is always true
       v->mutate()->assign_always_true_or_false(v->is_negated ? 2 : 1);
@@ -920,7 +917,8 @@ class InferTypesAndCallsAndFieldsVisitor final {
       tolk_assert(flow.smart_cast_exists(SinkExpression(var_ref)));   // all local vars are presented in flow
       TypePtr declared_or_smart_casted = flow.smart_cast_or_original(SinkExpression(var_ref), var_ref->declared_type);
       assign_inferred_type(v, declared_or_smart_casted);
-      if (var_ref->is_lateinit() && declared_or_smart_casted == TypeDataNotInferred::create() && v->is_rvalue) {
+      bool used_as_write = v->is_lvalue && !v->is_rvalue;
+      if (var_ref->is_lateinit() && declared_or_smart_casted == TypeDataNotInferred::create() && !used_as_write) {
         err_using_lateinit_variable_uninitialized(v->get_name()).fire(v, cur_f);
       }
       // it might be `local_var()` also, don't fill out_f_called, we have no fun_ref, it's a call of arbitrary expression
@@ -1260,7 +1258,7 @@ class InferTypesAndCallsAndFieldsVisitor final {
     // get return type either from user-specified declaration or infer here on demand traversing its body
     v->mutate()->assign_fun_ref(fun_ref, self_obj != nullptr);
     get_or_infer_return_type(fun_ref);
-    TypePtr inferred_type = fun_ref->does_return_self() && self_obj ? self_obj->inferred_type : fun_ref->inferred_return_type;
+    TypePtr inferred_type = fun_ref->does_return_self() ? fun_ref->parameters[0].declared_type : fun_ref->inferred_return_type;
     assign_inferred_type(v, inferred_type);
     assign_inferred_type(callee, fun_ref->inferred_full_type);
     if (inferred_type == TypeDataNever::create()) {
@@ -1277,7 +1275,7 @@ class InferTypesAndCallsAndFieldsVisitor final {
         std::vector<MethodCallCandidate> un_pack_candidates;
         check_struct_can_be_packed_or_unpacked(serialized_type, is_pack, nullptr, &un_pack_candidates);
         for (MethodCallCandidate c : un_pack_candidates) {
-          if (c.is_generic()) {
+          if (c.is_generic() && c.substitutedTs.typeT_at(c.substitutedTs.size() - 1)) {
             instantiate_generic_function(c.method_ref, std::move(c.substitutedTs));
           }
         }
@@ -1396,27 +1394,18 @@ class InferTypesAndCallsAndFieldsVisitor final {
     for (int i = 0; i < v->get_arms_count(); ++i) {
       auto v_arm = v->get_arm(i);
       FlowContext arm_flow = infer_any_expr(v_arm->get_pattern_expr(), arms_entry_facts.clone(), false, nullptr).out_flow;
-      if (s_expr && v_arm->pattern_kind == MatchArmKind::exact_type) {
-        TypePtr exact_type = v_arm->pattern_type_node->resolved_type;
-        if (const auto* t_struct = exact_type->try_as<TypeDataStruct>(); t_struct && t_struct->struct_ref->is_generic_struct()) {
-          // `Wrapper => ...`, detect T based on type of subject (`Wrapper<int> | int` => `Wrapper<int>`)
-          if (TypePtr inst_exact_type = try_pick_instantiated_generic_from_hint(v->get_subject()->inferred_type, t_struct->struct_ref)) {
-            exact_type = inst_exact_type;
-            v_arm->pattern_type_node->mutate()->assign_resolved_type(exact_type);
-          } else {
-            err_cannot_deduce_genericT(t_struct).fire(v_arm->pattern_type_node, cur_f);
-          }
+      if (v_arm->pattern_kind == MatchArmKind::exact_type) {
+        TypePtr exact_type = pick_exact_type_if_generics_omitted(v->get_subject()->inferred_type, v_arm->pattern_type_node->resolved_type);
+        if (!exact_type) {    // `match (v) { Wrapper => ... }` but can't detect T for `Wrapper<T>`
+          err_cannot_deduce_genericT(v_arm->pattern_type_node->resolved_type).fire(v_arm->pattern_type_node, cur_f);
         }
-        if (const auto* t_alias = exact_type->try_as<TypeDataAlias>(); t_alias && t_alias->alias_ref->is_generic_alias()) {
-          // `WrapperAlias => ...`, detect T similar to structures
-          if (TypePtr inst_exact_type = try_pick_instantiated_generic_from_hint(v->get_subject()->inferred_type, t_alias->alias_ref)) {
-            exact_type = inst_exact_type;
-            v_arm->pattern_type_node->mutate()->assign_resolved_type(exact_type);
-          } else {
-            err_cannot_deduce_genericT(t_alias).fire(v_arm->pattern_type_node, cur_f);
-          }
+        v_arm->pattern_type_node->mutate()->assign_resolved_type(exact_type);
+        if (s_expr) {
+          arm_flow.register_known_type(s_expr, exact_type);
         }
-        arm_flow.register_known_type(s_expr, exact_type);
+      } else if (s_expr && v_arm->pattern_kind == MatchArmKind::else_branch && has_type_arm) {
+        // it's `else` in `match` by type (allowed if `match` is lazy), the subject has no sense
+        arm_flow.register_known_type(s_expr, TypeDataNever::create());
       }
 
       has_type_arm |= v_arm->pattern_kind == MatchArmKind::exact_type;
@@ -1602,7 +1591,10 @@ class InferTypesAndCallsAndFieldsVisitor final {
     full_params_types.insert(full_params_types.end(), params_types.begin(), params_types.end());
 
     // instantiating lambdas is very similar to generic functions, also done at type inferring;
-    tolk_assert(v->lambda_ref == nullptr);
+    if (v->lambda_ref) {
+      // don't support double inferring, because earlier instantiated lambdas captured local vars with old types and can fail later
+      err("lambdas within a loop are not supported").fire(v, cur_f);
+    }
     FunctionPtr lambda_ref = instantiate_lambda_function(v, cur_f, full_params_types, return_type);
 
     // lambda_ref already travelled the pipeline including type inferring
@@ -1638,6 +1630,9 @@ class InferTypesAndCallsAndFieldsVisitor final {
   }
 
   FlowContext process_return_statement(V<ast_return_statement> v, FlowContext&& flow) {
+    if (!cur_f) {   // const A = match(subj) { ... }
+      err("`return` used outside a function").fire(v);
+    }
     if (v->has_return_value()) {
       flow = infer_any_expr(v->get_return_value(), std::move(flow), false, cur_f->declared_return_type).out_flow;
     } else {
@@ -1943,7 +1938,8 @@ void pipeline_infer_types_and_calls_and_fields() {
   }
 
   // infer types for default values in structs
-  for (StructPtr struct_ref : get_all_declared_structs()) {
+  for (size_t i = 0; i < get_all_declared_structs().size(); ++i) { // NOLINT(*-loop-convert)
+    StructPtr struct_ref = get_all_declared_structs()[i];   // generic instantiations can be appended while inferring
     if (!struct_ref->is_generic_struct()) {
       visitor.start_visiting_struct_fields(struct_ref);
     }

@@ -193,6 +193,9 @@ static void check_lazy_operator_used_correctly(FunctionPtr cur_f, V<ast_lazy_ope
 
   // it should be either a struct or a union of structs
   TypePtr expr_type = v->inferred_type;
+  if (get_custom_pack_unpack_function(expr_type) || is_type_cellT(expr_type)) {
+    err("`lazy` is not applicable to `{}`, because it overrides packToBuilder/unpackFromSlice", expr_type).fire(v->keyword_range(), cur_f);
+  }
   if (expr_type->unwrap_alias()->try_as<TypeDataStruct>()) {
     return;
   }
@@ -652,7 +655,7 @@ class CollectUsagesInStatementVisitor final : public ASTVisitorFunctionBody {
       AnyExprV dot_obj = v->get_callee()->as<ast_dot_access>()->get_obj();
       if (extract_sink_expression_from_vertex(dot_obj) == s_expr) {
         // handle built-in functions specially
-        if (fun_ref->is_builtin() && fun_ref->base_fun_ref->name == "T.toCell") {
+        if (fun_ref->is_builtin() && fun_ref->is_instantiation_of_generic_function() && fun_ref->base_fun_ref->name == "T.toCell") {
           lazy_expr->on_used_toCell();
           if (dot_obj->kind == ast_assign) {
             parent::visit(v->get_callee());

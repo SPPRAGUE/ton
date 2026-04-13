@@ -269,7 +269,13 @@ class TypeNodesVisitorResolver {
       if (!visited_aliases.contains(alias_ref)) {
         visit_symbol(alias_ref);
       }
-      if (alias_ref->is_generic_alias() && !allow_without_type_arguments) {
+      // check AST for genericsT_list, not is_generic_alias()
+      // because during mutual recursion in default type arguments, genericTs may not be assigned yet
+      bool has_generic_params = alias_ref->ast_root->as<ast_type_alias_declaration>()->genericsT_list != nullptr;
+      if (has_generic_params && !allow_without_type_arguments) {
+        if (!alias_ref->is_generic_alias()) {
+          err("type `{}` circularly references itself", alias_ref).fire(range, cur_f);
+        }
         if (alias_ref->genericTs->size_no_defaults() == 0) {    // `type U<T = int>`: use all defaults
           return instantiate_generic_type_or_fire(cur_f, range, TypeDataAlias::create(alias_ref), {});
         }
@@ -281,7 +287,12 @@ class TypeNodesVisitorResolver {
       if (!visited_structs.contains(struct_ref)) {
         visit_symbol(struct_ref);
       }
-      if (struct_ref->is_generic_struct() && !allow_without_type_arguments) {
+      // check AST for genericsT_list, not is_generic_struct(), see above
+      bool has_generic_params = struct_ref->ast_root->as<ast_struct_declaration>()->genericsT_list != nullptr;
+      if (has_generic_params && !allow_without_type_arguments) {
+        if (!struct_ref->is_generic_struct()) {
+          err("type `{}` circularly references itself", struct_ref).fire(range, cur_f);
+        }
         if (struct_ref->genericTs->size_no_defaults() == 0) {   // `struct Resp<T = cell>`: use all defaults
           return instantiate_generic_type_or_fire(cur_f, range, TypeDataStruct::create(struct_ref), {});
         }
@@ -406,13 +417,13 @@ public:
     if (contains) {
       err("type `{}` circularly references itself", alias_ref).fire(alias_ref->ident_anchor);
     }
+    called_stack.push_back(alias_ref);
 
     if (auto v_genericsT_list = alias_ref->ast_root->as<ast_type_alias_declaration>()->genericsT_list) {
       const GenericsDeclaration* genericTs = construct_genericTs(nullptr, v_genericsT_list);
       alias_ref->mutate()->assign_resolved_genericTs(genericTs);
     }
 
-    called_stack.push_back(alias_ref);
     TypeNodesVisitorResolver visitor(nullptr, alias_ref->genericTs, alias_ref->substitutedTs, false);
     TypePtr underlying_type = visitor.finalize_type_node(alias_ref->underlying_type_node);
     alias_ref->mutate()->assign_resolved_type(underlying_type);
@@ -740,6 +751,10 @@ class InfiniteStructSizeDetector {
   }
 
 public:
+  static void detect_and_fire_if_struct_is_infinite(StructPtr struct_ref) {
+    check_struct_for_infinite_size(struct_ref);
+  }
+
   static void detect_and_fire_if_any_struct_is_infinite() {
     for (auto [struct_ref, _] : visited_structs) {
       check_struct_for_infinite_size(struct_ref);
@@ -806,6 +821,7 @@ void pipeline_resolve_types_and_aliases(FunctionPtr fun_ref) {
 void pipeline_resolve_types_and_aliases(StructPtr struct_ref) {
   ResolveTypesInsideFunctionVisitor().start_visiting_struct_fields(struct_ref);
   TypeNodesVisitorResolver::visit_symbol(struct_ref);
+  InfiniteStructSizeDetector::detect_and_fire_if_struct_is_infinite(struct_ref);
 }
 
 void pipeline_resolve_types_and_aliases(AliasDefPtr alias_ref) {

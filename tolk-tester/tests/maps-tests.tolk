@@ -50,6 +50,11 @@ fun map<K, V>.calculateSize(self) {
     return size;
 }
 
+struct SSSet<T> {
+    // SSSet<T> is not initialized, check that generic T as a key does not trigger errors
+    private m: map<T, ()>
+}
+
 
 struct LinkedMap {
     values: array<int8>

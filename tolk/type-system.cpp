@@ -1203,7 +1203,7 @@ bool TypeDataMapKV::can_be_casted_with_as_operator(TypePtr cast_to) const {
 
 bool TypeDataUnknown::can_be_casted_with_as_operator(TypePtr cast_to) const {
   // anything be cast to `unknown` and back (if T occupies not 1 stack slot, it's converted into a tuple)
-  return true;
+  return cast_to != TypeDataNever::create();
 }
 
 bool TypeDataNotInferred::can_be_casted_with_as_operator(TypePtr cast_to) const {

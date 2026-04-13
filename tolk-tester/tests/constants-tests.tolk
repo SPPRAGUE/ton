@@ -130,6 +130,24 @@ const shape1: [int, bool, int32] = [5, false, 7];
 const shape2: [int, (int, bool), Point?, Point?, ()] = [5, (6, true), {}, null, ()]
 const shape1_tens = (shape1.0, shape1.1);
 
+const nul_arr_i: array<int>? = [1]
+const nul_list_i: lisp_list<int>? = [1]
+const nul_list_i_n: lisp_list<int>? = null
+const coins_or_int8: coins | int8 = Wrapper { item: ton("0.05") }.item
+const arr_or_int: array<int> | int = []
+
+struct WithNullableArray {
+    x: array<int>?
+}
+
+struct WithNullableArrayDef {
+    x: array<int>? = [2]
+}
+
+const objWithNullableArray: WithNullableArray = { x: [1] }
+const objWithNullableArrayDef: WithNullableArrayDef = {}
+
+
 fun iget240(): MInt { return int240; }
 
 @pure
@@ -280,6 +298,26 @@ fun test22() {
     return (str1.beginParse().remainingBitsCount(), str3.remainingBitsCount());
 }
 
+@method_id(123)
+fun test123() {
+    return (nul_arr_i!, nul_list_i!, 777, nul_list_i_n)
+}
+
+@method_id(124)
+fun test124() {
+    return (
+        match (val ii = arr_or_int) { array<int> => ii.size(), int => ii },
+        match (val ii = coins_or_int8) { int8 => 0, coins => ii as int },
+    )
+}
+
+@method_id(125)
+fun test125() {
+    val manual = objWithNullableArray.x!;
+    val def = objWithNullableArrayDef.x!;
+    return (manual.size(), manual.get(0), def.size(), def.get(0));
+}
+
 fun main() {
     var i1: int = iget1();
     var i2: int = iget2();
@@ -326,6 +364,9 @@ fun main() {
 @testcase | 120 |   | [ 5 0 7 ] [ 5 [ 6 -1 ] [ 10 20 typeid-3 ] [ (null) (null) 0 ] [] ] 5 0
 @testcase | 121 |   | (null) (null) 0 
 @testcase | 122 |   | 48 64
+@testcase | 123 |   | [ 1 ] [ 1 (null) ] 777 (null) 0
+@testcase | 124 |   | 0 50000000
+@testcase | 125 |   | 1 1 1 2
 
-@code_hash 67723149647754803618590559478221789890530509010341373926517429131762844790728
+@code_hash 112630949630661007029774670083026056546591178981553693940505124712245440095740
 */

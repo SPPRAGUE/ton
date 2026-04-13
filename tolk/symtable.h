@@ -202,6 +202,9 @@ struct FunctionData final : Symbol {
   bool is_method() const { return !method_name.empty(); }
   bool is_static_method() const { return is_method() && !does_accept_self(); }
 
+  bool is_packToBuilder() const { return method_name == "packToBuilder"; }
+  bool is_unpackFromSlice() const { return method_name == "unpackFromSlice"; }
+
   bool is_generic_function() const { return genericTs != nullptr; }
   bool is_instantiation_of_generic_function() const { return substitutedTs != nullptr; }
   bool is_lambda() const { return flags & flagIsLambda; }

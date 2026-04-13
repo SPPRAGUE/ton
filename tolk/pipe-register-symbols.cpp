@@ -121,6 +121,9 @@ static AliasDefPtr register_type_alias(V<ast_type_alias_declaration> v, AliasDef
   if (name.empty()) {
     name = v_ident->name;
   }
+  if (name == "T") {
+    err("`T` is a reserved system name for generics").fire(v_ident);
+  }
   const GenericsDeclaration* genericTs = nullptr;   // at registering it's null; will be assigned after types resolving
   AliasDefData* a_sym = new AliasDefData(std::move(name), v_ident, v->underlying_type_node, DocCommentLines(v->doc_lines), genericTs, substitutedTs, v);
   a_sym->base_alias_ref = base_alias_ref;   // for `Response<int>`, here is `Response<T>`

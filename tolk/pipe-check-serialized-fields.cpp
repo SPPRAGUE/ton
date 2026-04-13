@@ -64,7 +64,9 @@ static void check_map_TKey_TValue(SrcRange range, TypePtr TKey, TypePtr TValue) 
 GNU_ATTRIBUTE_NOINLINE
 static void check_mapKV_inside_type(SrcRange range, TypePtr any_type) {
   any_type->replace_children_custom([range](TypePtr child) {
-    if (const TypeDataMapKV* t_map = child->try_as<TypeDataMapKV>()) {
+    if (const TypeDataAlias* t_alias = child->try_as<TypeDataAlias>()) {
+      check_mapKV_inside_type(range, t_alias->underlying_type);
+    } else if (const TypeDataMapKV* t_map = child->try_as<TypeDataMapKV>(); t_map && !t_map->has_genericT_inside()) {
       check_map_TKey_TValue(range, t_map->TKey, t_map->TValue);
     }
     return child;
@@ -72,8 +74,11 @@ static void check_mapKV_inside_type(SrcRange range, TypePtr any_type) {
 }
 
 static void check_mapKV_inside_type(AnyTypeV type_node) {
-  if (type_node && type_node->resolved_type->has_mapKV_inside()) {
-    check_mapKV_inside_type(type_node->range, type_node->resolved_type);
+  if (type_node) {
+    TypePtr checked_type = type_node->resolved_type->unwrap_alias();
+    if (checked_type->has_mapKV_inside()) {
+      check_mapKV_inside_type(type_node->range, checked_type);
+    }
   }
 }
 
@@ -163,6 +168,9 @@ class CheckSerializedFieldsAndTypesVisitor final : public ASTVisitorFunctionBody
     parent::visit(v);
 
     FunctionPtr fun_ref = v->fun_maybe;
+    if (fun_ref && fun_ref->receiver_type) {
+      check_mapKV_inside_type(v->range, fun_ref->receiver_type);
+    }
     if (!fun_ref || !fun_ref->is_builtin() || !fun_ref->is_instantiation_of_generic_function()) {
       return;
     }
@@ -187,6 +195,12 @@ class CheckSerializedFieldsAndTypesVisitor final : public ASTVisitorFunctionBody
 
     if (!fun_ref->name.starts_with("reflect.")) {
       check_type_fits_cell_or_has_policy(serialized_type);
+    }
+  }
+
+  void visit(V<ast_reference> v) override {
+    if (v->sym->try_as<FunctionPtr>()) {
+      check_mapKV_inside_type(v->range, v->inferred_type);
     }
   }
 
@@ -218,6 +232,7 @@ public:
     for (int i = 0; i < cur_f->get_num_params(); ++i) {
       check_mapKV_inside_type(cur_f->get_param(i).type_node);
     }
+    check_mapKV_inside_type(cur_f->return_type_node);
   }
 };
 
@@ -236,6 +251,9 @@ void pipeline_check_serialized_fields() {
   }
   for (GlobalVarPtr glob_ref : get_all_declared_global_vars()) {
     check_mapKV_inside_type(glob_ref->type_node);
+  }
+  for (GlobalConstPtr const_ref : get_all_declared_constants()) {
+    check_mapKV_inside_type(const_ref->type_node);
   }
   for (EnumDefPtr enum_ref : get_all_declared_enums()) {
     if (enum_ref->colon_type_node) {
