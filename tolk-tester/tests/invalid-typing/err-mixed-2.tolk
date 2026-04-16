@@ -9,6 +9,11 @@ fun alwaysThrow(): never {
     throw 1;
 }
 
+// @stderr invalid left side of assignment
+fun cantAssignToFunction(): void {
+    cantAssignToFunction = cantAssignToFunction;
+}
+
 // @stderr can not assign `never` to `[...]`
 fun cantAssignNeverToShape() {
     var [x] = alwaysThrow();

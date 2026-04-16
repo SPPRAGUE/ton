@@ -1353,6 +1353,9 @@ static AsmOp compile_debug_print_to_string(std::vector<VarDescr>&, std::vector<V
 static AsmOp compile_T_to_tuple(std::vector<VarDescr>& res, std::vector<VarDescr>& args, AnyV origin) {
   tolk_assert(res.size() == 1);
   int n_slots = static_cast<int>(args.size());
+  if (UNLIKELY(n_slots >= 255)) {
+    err("tuple overflow").fire(origin);
+  }
   std::string op_make_tuple = std::to_string(n_slots) + (n_slots > 15 ? " PUSHINT TUPLEVAR" : " TUPLE");  
   return exec_op(origin, op_make_tuple, n_slots, 1);
 }
@@ -1361,6 +1364,9 @@ static AsmOp compile_T_to_tuple(std::vector<VarDescr>& res, std::vector<VarDescr
 static AsmOp compile_T_from_tuple(std::vector<VarDescr>& res, std::vector<VarDescr>& args, AnyV origin) {
   tolk_assert(args.size() == 1);
   int n_slots = static_cast<int>(res.size());
+  if (UNLIKELY(n_slots >= 255)) {
+    err("tuple overflow").fire(origin);
+  }
   std::string op_un_tuple = std::to_string(n_slots) + (n_slots > 15 ? " PUSHINT UNTUPLEVAR" : " UNTUPLE");  
   return exec_op(origin, op_un_tuple, 1, n_slots);
 }

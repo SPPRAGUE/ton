@@ -334,7 +334,11 @@ struct Defaults {
       "struct_name": "Holder<int32>",
       "monomorphic_fields_ty_idx": [
         26
-      ]
+      ],
+      "custom_pack_unpack": {
+        "pack_to_builder": true,
+        "unpack_from_slice": true
+      }
     },
     {
       "ty_idx": 28,

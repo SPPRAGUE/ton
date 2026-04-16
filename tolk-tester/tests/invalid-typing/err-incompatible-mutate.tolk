@@ -36,6 +36,30 @@ fun smartCastedUnionStackLayout(v: slice | int | null) {
     }
 }
 
+fun overwriteWithGeneralInt(mutate x: int) {
+    x = 300;
+}
+
+// @stderr can not pass `int | int8` to mutate `int`, because mutation is not type compatible
+fun cantMutateSmartCastedUnionVariantAsAnotherVariant(flag: int) {
+    var u: int | int8 = flag > 10 ? 1 : (1 as int8);
+    if (flag != 0 && u is int8) {
+        overwriteWithGeneralInt(mutate u);
+    }
+}
+
+fun int.overwriteWithGeneralIntSelf(mutate self) {
+    self = 300;
+}
+
+// @stderr can not call method for mutate `int` with object of type `int | int8`, because mutation is not type compatible
+fun cantMutateSmartCastedUnionReceiverAsAnotherVariant(flag: int) {
+    var u: int | int8 = flag > 10 ? 1 : (1 as int8);
+    if (flag != 0 && u is int8) {
+        u.overwriteWithGeneralIntSelf();
+    }
+}
+
 fun firstMutateSecondNot(x77: int, mutate y77: int) {
 }
 

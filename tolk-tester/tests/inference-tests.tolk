@@ -42,8 +42,8 @@ fun test2(x: int, y: bool) {
     __expect_type(!x, "bool");
     __expect_type(x != x, "bool");
     __expect_type(x <= x, "bool");
-    __expect_type(x <=> x, "bool");
-    __expect_type(x <=> x, "bool");
+    __expect_type(x <=> x, "int");
+    __expect_type(x <=> x, "int");
     __expect_type(!random.uint256(), "bool");
     __expect_type(!!(x != null), "bool");
     __expect_type(x ? x != null : null == x, "bool");
@@ -176,6 +176,32 @@ fun test13(c: cell) {
     }
 }
 
+@method_id(114)
+fun test14() {
+    var a: string? = "A";
+    var b: string? = "B";
+    var c: string? = "C";
+    var i = 0;
+
+    while (a != null) {
+        i += 1;
+        if (i == 5) {
+            __expect_type(a, "string");
+            __expect_type(b, "string?");
+            __expect_type(c, "string?");
+            throw 99;
+        }
+        a = b;
+        b = c;
+        c = null;
+    }
+
+    __expect_type(a, "null");
+    __expect_type(b, "string?");
+    __expect_type(c, "string?");
+    return (a, b, c, i);
+}
+
 
 fun main() {
     return 0;
@@ -185,4 +211,5 @@ fun main() {
 @testcase | 0   |      | 0
 @testcase | 108 | 1 10 | -1
 @testcase | 112 |      | 1
+@testcase | 114 |      | (null) (null) (null) 3
 */

@@ -123,7 +123,8 @@ static bool are_two_equal_type_aliases_different(const TypeDataAlias* t1, const 
     return false;
   }
   if (t1->alias_ref->is_instantiation_of_generic_alias() && t2->alias_ref->is_instantiation_of_generic_alias()) {
-    return !t1->alias_ref->substitutedTs->equal_to(t2->alias_ref->substitutedTs);
+    return t1->alias_ref->base_alias_ref != t2->alias_ref->base_alias_ref
+       || !t1->alias_ref->substitutedTs->equal_to(t2->alias_ref->substitutedTs);
   }
   // handle `type MInt2 = MInt1`, as well as `type BalanceList = dict`, then they are equal
   const TypeDataAlias* t_und1 = t1->underlying_type->try_as<TypeDataAlias>();
@@ -369,7 +370,7 @@ int TypeDataTensor::get_type_id() const {
 }
 
 int TypeDataIntN::get_type_id() const {
-  switch (n_bits) {
+  switch (n_bits * !is_variadic) {
     case 8:   return type_id_int8   + is_unsigned;    // for common intN, use predefined small numbers
     case 16:  return type_id_int16  + is_unsigned;
     case 32:  return type_id_int32  + is_unsigned;

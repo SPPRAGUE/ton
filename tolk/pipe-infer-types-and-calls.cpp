@@ -79,8 +79,9 @@
  *        // <- but here x is `int?` (not `int`) due to assignment in a loop
  *        if (...) { x = getNullableInt(); }
  *      }
- *   When building control flow, loops are inferred twice. In the above, at first iteration, x will be `int`,
- * but at the second, x will be `int?` (after merged with loop end).
+ *   When building control flow, loops are inferred until control-flow facts reach a fixed point.
+ * In the above, at first iteration, x will be `int`, but after merging with the loop end it becomes `int?`,
+ * and subsequent passes keep reusing the stabilized facts.
  *   That's why type checking is done later, not to make false errors on the first iteration.
  *   Note, that it would also be better to postpone generics "materialization" also: here only to infer type arguments,
  * but to instantiate and re-assign fun_ref later. But it complicates the architecture significantly.
@@ -211,6 +212,7 @@ static TypePtr try_pick_instantiated_generic_from_hint(TypePtr hint, AliasDefPtr
     if (lookup_ref == h_alias->alias_ref->base_alias_ref) {
       return h_alias;
     }
+    return try_pick_instantiated_generic_from_hint(h_alias->underlying_type, lookup_ref);
   }
   return nullptr;
 }
@@ -634,10 +636,15 @@ class InferTypesAndCallsAndFieldsVisitor final {
       case tok_gt:
       case tok_leq:
       case tok_geq:
-      case tok_spaceship:
         flow = infer_any_expr(lhs, std::move(flow), false).out_flow;
         flow = infer_any_expr(rhs, std::move(flow), false).out_flow;
         assign_inferred_type(v, TypeDataBool::create());
+        break;
+      // spaceship returns the integer sign (-1, 0, 1)
+      case tok_spaceship:
+        flow = infer_any_expr(lhs, std::move(flow), false).out_flow;
+        flow = infer_any_expr(rhs, std::move(flow), false).out_flow;
+        assign_inferred_type(v, TypeDataInt::create());
         break;
       // & | ^ are "overloaded" both for integers and booleans
       case tok_bitwise_and:
@@ -898,7 +905,7 @@ class InferTypesAndCallsAndFieldsVisitor final {
     // T for asm function must be a TVM primitive (width 1), otherwise, asm would act incorrectly
     if (fun_ref->is_asm_function() || fun_ref->is_builtin()) {
       for (int i = 0; i < substitutedTs.size(); ++i) {
-        if (substitutedTs.typeT_at(i)->get_width_on_stack() != 1 && !is_allowed_asm_generic_function_with_non1_width_T(fun_ref, i)) {
+        if (substitutedTs.typeT_at(i)->get_width_on_stack() != 1 && !is_allowed_asm_generic_function_with_non1_width_T(fun_ref, substitutedTs, i)) {
           err_calling_asm_function_with_non1_stack_width_arg(fun_ref, substitutedTs, i).fire(range, cur_f);
         }
       }
@@ -1006,8 +1013,8 @@ class InferTypesAndCallsAndFieldsVisitor final {
         }
         // `Maybe.value(123)` or `Maybe.none()` where it's a generic `type Maybe<T>`
         if (const TypeDataAlias* r_aliasT = receiver_type->try_as<TypeDataAlias>(); r_aliasT && r_aliasT->alias_ref->is_generic_alias()) {
-          if (const TypeDataAlias* hint_same = hint ? hint->try_as<TypeDataAlias>() : nullptr; hint_same && hint_same->alias_ref->base_alias_ref == r_aliasT->alias_ref) {
-            receiver_type = hint;   // assigned to `var v: Maybe<int> = Maybe.none()` or similar same hint
+          if (TypePtr hinted_receiver = hint ? try_pick_instantiated_generic_from_hint(hint, r_aliasT->alias_ref) : nullptr) {
+            receiver_type = hinted_receiver;   // assigned to `var v: Maybe<int> = Maybe.none()` or an alias-equivalent hint
           } else {
             err_cannot_deduce_genericT(r_aliasT).fire(v->get_obj(), cur_f);
           }
@@ -1200,6 +1207,7 @@ class InferTypesAndCallsAndFieldsVisitor final {
       }
       if (param_0.is_mutate_parameter()) {
         if (SinkExpression s_expr = extract_sink_expression_from_vertex(self_obj)) {
+          v->mutate()->assign_self_type_before_mutate(self_obj->inferred_type);
           assign_inferred_type(self_obj, param_type);
           flow.register_known_type(s_expr, param_type);
         }
@@ -1307,7 +1315,8 @@ class InferTypesAndCallsAndFieldsVisitor final {
       TypePtr provided_type = v->type_node->resolved_type->unwrap_alias();
       bool is_valid_constructor = provided_type->try_as<TypeDataArray>()
                               || (provided_type->try_as<TypeDataStruct>() && provided_type->try_as<TypeDataStruct>()->struct_ref->is_instantiation_of_LispListT())
-                              || (provided_type->try_as<TypeDataMapKV>());
+                              || (provided_type->try_as<TypeDataMapKV>())
+                              || (provided_type->try_as<TypeDataShapedTuple>());
       if (is_valid_constructor) {
         hint = v->type_node->resolved_type;
       } else {
@@ -1657,51 +1666,49 @@ class InferTypesAndCallsAndFieldsVisitor final {
   }
 
   FlowContext process_repeat_statement(V<ast_repeat_statement> v, FlowContext&& flow) {
-    // loops are inferred twice, to merge body outcome with the state before the loop
     // in `repeat` (as opposed to `while`), a condition is not boolean, it's a number
     flow = infer_any_expr(v->get_cond(), std::move(flow), false).out_flow;
     FlowContext loop_entry_facts = flow.clone();
-    FlowContext body_out = process_any_statement(v->get_body(), std::move(flow));
-
-    // second time, to refine all types
-    flow = FlowContext::merge_flow(std::move(loop_entry_facts), std::move(body_out));
-    FlowContext body_out2 = process_any_statement(v->get_body(), flow.clone());
-    // merge second body output to account for its effects on the loop state
-    return FlowContext::merge_flow(std::move(flow), std::move(body_out2));
+    // infer until loop-entry facts reach a fixed point
+    while (true) {
+      FlowContext body_out = process_any_statement(v->get_body(), flow.clone());
+      FlowContext next_flow = FlowContext::merge_flow(loop_entry_facts.clone(), std::move(body_out));
+      if (next_flow.equivalent_to(flow)) {
+        return next_flow;
+      }
+      flow = std::move(next_flow);
+    }
   }
 
   FlowContext process_while_statement(V<ast_while_statement> v, FlowContext&& flow) {
-    // loops are inferred twice; read comments above
-    // (a more correct approach would be not "twice", but "find a fixed point when state stop changing")
+    // infer until loop-entry facts reach a fixed point
     // also remember, we don't have a `break` statement, that's why when loop exits, condition became false
     FlowContext loop_entry_facts = flow.clone();
-    ExprFlow after_cond = infer_any_expr(v->get_cond(), std::move(flow), true);
-    FlowContext body_out = process_any_statement(v->get_body(), std::move(after_cond.true_flow));
-    // second time, to refine all types
-    flow = FlowContext::merge_flow(std::move(loop_entry_facts), std::move(body_out));
-    ExprFlow after_cond2 = infer_any_expr(v->get_cond(), flow.clone(), true);
-    FlowContext body_out2 = process_any_statement(v->get_body(), std::move(after_cond2.true_flow));
-    // unlike do_while (where cond is last and already sees body effects), in while cond precedes body,
-    // so merge the second body output back and re-evaluate the condition (third time!)
-    flow = FlowContext::merge_flow(std::move(flow), std::move(body_out2));
-    ExprFlow after_cond3 = infer_any_expr(v->get_cond(), std::move(flow), true);
-    v->get_cond()->mutate()->assign_always_true_or_false(after_cond3.get_always_true_false_state());
-
-    return std::move(after_cond3.false_flow);
+    while (true) {
+      ExprFlow after_cond = infer_any_expr(v->get_cond(), flow.clone(), true);
+      FlowContext body_out = process_any_statement(v->get_body(), std::move(after_cond.true_flow));
+      FlowContext next_flow = FlowContext::merge_flow(loop_entry_facts.clone(), std::move(body_out));
+      if (next_flow.equivalent_to(flow)) {
+        v->get_cond()->mutate()->assign_always_true_or_false(after_cond.get_always_true_false_state());
+        return std::move(after_cond.false_flow);
+      }
+      flow = std::move(next_flow);
+    }
   }
 
   FlowContext process_do_while_statement(V<ast_do_while_statement> v, FlowContext&& flow) {
-    // do while is also handled twice; read comments above
+    // infer until loop-entry facts reach a fixed point
     FlowContext loop_entry_facts = flow.clone();
-    flow = process_any_statement(v->get_body(), std::move(flow));
-    ExprFlow after_cond = infer_any_expr(v->get_cond(), std::move(flow), true);
-    // second time
-    flow = FlowContext::merge_flow(std::move(loop_entry_facts), std::move(after_cond.true_flow));
-    flow = process_any_statement(v->get_body(), std::move(flow));
-    ExprFlow after_cond2 = infer_any_expr(v->get_cond(), std::move(flow), true);
-    v->get_cond()->mutate()->assign_always_true_or_false(after_cond2.get_always_true_false_state());
-
-    return std::move(after_cond2.false_flow);
+    while (true) {
+      FlowContext body_out = process_any_statement(v->get_body(), flow.clone());
+      ExprFlow after_cond = infer_any_expr(v->get_cond(), std::move(body_out), true);
+      FlowContext next_flow = FlowContext::merge_flow(loop_entry_facts.clone(), std::move(after_cond.true_flow));
+      if (next_flow.equivalent_to(flow)) {
+        v->get_cond()->mutate()->assign_always_true_or_false(after_cond.get_always_true_false_state());
+        return std::move(after_cond.false_flow);
+      }
+      flow = std::move(next_flow);
+    }
   }
 
   FlowContext process_throw_statement(V<ast_throw_statement> v, FlowContext&& flow) {

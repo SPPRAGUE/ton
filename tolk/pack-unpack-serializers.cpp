@@ -50,6 +50,43 @@ bool is_type_cellT(TypePtr any_type) {
   return false;
 }
 
+// Unlike regular methods, custom serializers must not leak from aliases to underlying types.
+// Example:
+// > struct Box { ... }
+// > type BoxAlias = Box
+// > fun BoxAlias.packToBuilder
+// It must NOT be auto-applicable to `Box`. Whereas for other methods, like `fun BoxAlias.xyz`, `box.xyz()` is okay.
+static bool is_same_custom_serialization_receiver(TypePtr receiver_type, TypePtr candidate_receiver) {
+  if (const TypeDataAlias* t_alias = receiver_type->try_as<TypeDataAlias>()) {
+    const TypeDataAlias* c_alias = candidate_receiver->try_as<TypeDataAlias>();
+    return c_alias && c_alias->alias_ref == t_alias->alias_ref;
+  }
+  if (receiver_type->try_as<TypeDataStruct>()) {
+    return candidate_receiver->try_as<TypeDataStruct>() && candidate_receiver->equal_to(receiver_type);
+  }
+  if (receiver_type->try_as<TypeDataEnum>()) {
+    return candidate_receiver->try_as<TypeDataEnum>() && candidate_receiver->equal_to(receiver_type);
+  }
+  return false;
+}
+
+static std::vector<MethodCallCandidate> filter_pack_candidates(TypePtr receiver_type, const std::vector<MethodCallCandidate>& candidates) {
+  int min_generics = 100;
+  for (const MethodCallCandidate& c : candidates) {
+    int n_generics = c.is_generic() ? c.substitutedTs.size() : 0;
+    min_generics = std::min(min_generics, n_generics);
+  }
+
+  std::vector<MethodCallCandidate> filtered;
+  for (MethodCallCandidate c : candidates) {
+    int n_generics = c.is_generic() ? c.substitutedTs.size() : 0;
+    if (n_generics == min_generics && is_same_custom_serialization_receiver(receiver_type, c.instantiated_receiver)) {
+      filtered.emplace_back(std::move(c));
+    }
+  }
+  return filtered;
+}
+
 // Any type alias or struct can have custom pack/unpack functions declared:
 // > type TelegramString = slice
 // > fun TelegramString.packToBuilder(self, mutate b: builder) { ... }
@@ -59,30 +96,36 @@ CustomPackUnpackF get_custom_pack_unpack_function(TypePtr receiver_type, std::ve
   // a receiver is not a primitive, so `MyInt` won't collide with `int.packToBuilder` (the latter is disallowed)
   CustomPackUnpackF f{nullptr, nullptr};
 
+  // fast return path without methods lookup
+  bool can_potentially_have = receiver_type->try_as<TypeDataAlias>() || receiver_type->try_as<TypeDataStruct>() || receiver_type->try_as<TypeDataEnum>();
+  if (!can_potentially_have) {
+    return f;
+  }
+
   // while inferring types and generic functions, output generic candidates
   // for `fun SomeStruct<T>.packToBuilder`, so that it would be instantiated for T
   std::vector<MethodCallCandidate> c_pack = resolve_methods_for_call(receiver_type, "packToBuilder", false);
   std::vector<MethodCallCandidate> c_unpack = resolve_methods_for_call(receiver_type, "unpackFromSlice", false);
+
+  c_pack = filter_pack_candidates(receiver_type, c_pack);
+  if (c_pack.size() > 1) {
+    err("ambiguous method, both `{}` and `{}` are applicable", c_pack[0].method_ref, c_pack[1].method_ref).fire(c_pack[0].method_ref->ident_anchor);
+  }
+  if (!c_pack.empty()) {
+    f.f_pack = c_pack[0].method_ref;
+  }
+
+  c_unpack = filter_pack_candidates(receiver_type, c_unpack);
+  if (c_unpack.size() > 1) {
+    err("ambiguous method, both `{}` and `{}` are applicable", c_unpack[0].method_ref, c_unpack[1].method_ref).fire(c_unpack[0].method_ref->ident_anchor);
+  }
+  if (!c_unpack.empty()) {
+    f.f_unpack = c_unpack[0].method_ref;
+  }
+
   if (out_candidates) {
     out_candidates->insert(out_candidates->end(), c_pack.begin(), c_pack.end());
     out_candidates->insert(out_candidates->end(), c_unpack.begin(), c_unpack.end());
-  }
-
-  for (const MethodCallCandidate& c : c_pack) {
-    if (!c.is_generic() && c.method_ref->receiver_type->equal_to(receiver_type)) {
-      if (f.f_pack) {
-        err("ambiguous method, both `{}` and `{}` are applicable", f.f_pack, c.method_ref).fire(f.f_pack->ident_anchor);
-      }
-      f.f_pack = c.method_ref;
-    }
-  }
-  for (const MethodCallCandidate& c : c_unpack) {
-    if (!c.is_generic() && c.method_ref->receiver_type->equal_to(receiver_type)) {
-      if (f.f_unpack) {
-        err("ambiguous method, both `{}` and `{}` are applicable", f.f_unpack, c.method_ref).fire(f.f_unpack->ident_anchor);
-      }
-      f.f_unpack = c.method_ref;
-    }
   }
   return f;
 }
@@ -808,8 +851,10 @@ struct S_Either final : ISerializer {
     }
     tolk_assert(options.match_blocks.size() == 2);
     std::vector ir_result = code.create_tmp_var(options.match_expr_type, origin, "(match-expression)");
-    std::vector ir_is_right = ctx->loadUint(1, "(eitherBit)");
-    Op& if_op = code.add_if_else(origin, std::move(ir_is_right));
+    std::vector ir_prefix_eq = code.create_tmp_var(TypeDataInt::create(), origin, "(prefix-eq)");
+    std::vector args = { ctx->ir_slice0, code.create_int(origin, 1, "(pack-prefix)"), code.create_int(origin, 1, "(prefix-len)") };
+    code.add_call(origin, {ctx->ir_slice0, ir_prefix_eq[0]}, std::move(args), lookup_function("slice.tryStripPrefix"));
+    Op& if_op = code.add_if_else(origin, ir_prefix_eq);
     {
       code.push_set_cur(if_op.block0);
       const LazyMatchOptions::MatchBlock* m_block = options.find_match_block(t_right);
@@ -819,6 +864,7 @@ struct S_Either final : ISerializer {
     }
     {
       code.push_set_cur(if_op.block1);
+      ctx->loadAndCheckOpcode(PackOpcode(0, 1));
       const LazyMatchOptions::MatchBlock* m_block = options.find_match_block(t_left);
       std::vector ith_result = pre_compile_expr(m_block->v_body, code);
       options.save_match_result_on_arm_end(code, origin, m_block, std::move(ith_result), ir_result);
@@ -1361,7 +1407,7 @@ struct S_IntegerEnum final : ISerializer {
       // enum's members are A...B one by one (probably, 0...M);
       // then validation is: "throw if v<A or v>B", but "LESSINT + THROWIF" 2 times is more generalized
       td::RefInt256 min_value = enum_ref->members.front()->computed_value;
-      bool dont_check_min = intN != nullptr && intN->is_unsigned && min_value == 0;
+      bool dont_check_min = intN != nullptr && intN->is_unsigned && !intN->is_variadic && min_value == 0;
       if (!dont_check_min) {    // LDU can't load < 0 
         std::vector ir_min_value = code.create_tmp_var(TypeDataInt::create(), origin, "(enum-min)");
         code.add_int_const(origin, ir_min_value, min_value);
@@ -1371,7 +1417,7 @@ struct S_IntegerEnum final : ISerializer {
         code.add_call(origin, {}, std::move(args_throwif), lookup_function("__throw_if"));
       }
       td::RefInt256 max_value = enum_ref->members.back()->computed_value;
-      bool dont_check_max = intN != nullptr && intN->is_unsigned && max_value == (1ULL << intN->n_bits) - 1;
+      bool dont_check_max = intN != nullptr && intN->is_unsigned && !intN->is_variadic && intN->n_bits < 32 && max_value == (1ULL << intN->n_bits) - 1;
       if (!dont_check_max) {    // LDU can't load >= 1<<N
         std::vector ir_max_value = code.create_tmp_var(TypeDataInt::create(), origin, "(enum-max)");
         code.add_int_const(origin, ir_max_value, max_value);
@@ -1645,6 +1691,9 @@ static std::unique_ptr<ISerializer> get_serializer_for_type(TypePtr any_type) {
   if (const auto* t_union = any_type->try_as<TypeDataUnion>()) {
     // `T?` is always `(Maybe T)`, even if T has custom opcode (opcode will follow bit '1')
     if (t_union->or_null) {
+      if (get_custom_pack_unpack_function(t_union->or_null)) {
+        return std::make_unique<S_Maybe>(t_union);
+      }
       TypePtr or_null = t_union->or_null->unwrap_alias();
       if (or_null == TypeDataCell::create() || is_type_cellT(or_null)) {
         return std::make_unique<S_RawTVMcellOrNull>();

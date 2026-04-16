@@ -86,6 +86,16 @@ struct Point3d {
     z: int32;
 }
 
+struct StorageWithTail {
+    a: uint8
+    b: uint8?
+    c: uint8?
+}
+
+fun StorageWithTail.makeCell(self) {
+    return self.toCell();
+}
+
 type PointOrPoint3d = Point | Point3d;
 
 struct Point78ForMaybe {
@@ -176,6 +186,25 @@ struct(0x12345678) Counter32Increment { byValue: int32; }
 struct(0x23456789) Counter32DecrementBy1 {}
 struct(0x34567890) Counter32Reset { initial: uint32; f2: int8; f3: int8; f4: int8; f5: int8; }
 type MyMsg32 = Counter32Increment | Counter32DecrementBy1 | Counter32Reset;
+
+type LazyAliasInt32 = int32;
+struct(0x51) LazyAliasBox<T> { value: T; }
+struct(0x52) LazyAliasEmpty {}
+type LazyAliasUnion = LazyAliasBox<LazyAliasInt32> | LazyAliasEmpty;
+
+struct CustomOk<T> { value: T; }
+struct CustomErr { code: int32; }
+type CustomResponse<T> = CustomOk<T> | CustomErr
+
+fun CustomResponse<T>.unpackFromSlice(mutate s: slice): CustomResponse<T> {
+    return s.loadUint(1) == 0
+        ? CustomOk<T>{ value: s.loadAny<T>() }
+        : CustomErr{ code: s.loadInt(32) }
+}
+
+struct CustomAliasContainer {
+    response: CustomResponse<int32>;
+}
 
 struct AutoP1 { f1: int8; f2: int8; }
 struct AutoP2 { f1: int8; f2: int8; f3: int8; }
@@ -1550,6 +1579,21 @@ fun demo316() {
     return (cp1, cp2, y3, p3.toCell().load());
 }
 
+@method_id(317)
+fun demo317() {
+    val src = StorageWithTail{ a: 11, b: null, c: 22 }.toCell();
+
+    var wrapped = lazy StorageWithTail.fromCell(src);
+    __expect_lazy("[wrapped] load a, save immutable (tail)");
+    wrapped.a = 33;
+    val wrappedOut = StorageWithTail.fromCell((wrapped = wrapped).makeCell());
+
+    return (
+        wrappedOut.a,
+        wrappedOut.c != null ? wrappedOut.c as int : -1
+    );
+}
+
 
 @method_id(400)
 fun demo400() {
@@ -1809,6 +1853,46 @@ fun demo414(setObj: bool) {
     return o1.toCell().load();
 }
 
+@method_id(415)
+fun demo415(): int {
+    try {
+        match (val msg = lazy AOrB.fromSlice(createEmptySlice(), {
+            throwIfOpcodeDoesNotMatch: 777,
+            assertEndAfterReading: false,
+        })) {
+            A => return 1,
+            B => return 2,
+        }
+    } catch (excno) {
+        return excno;
+    }
+}
+
+@method_id(416)
+fun demo416(s: slice): int32 {
+    val msg = lazy LazyAliasUnion.fromSlice(s);
+    var result: int32 = 0;
+    __expect_lazy("[msg] lazy match");
+    match (msg) {
+        LazyAliasBox<int32> => {
+            __expect_lazy("[msg] load value");
+            result = msg.value;
+        },
+        LazyAliasEmpty => {}
+    }
+    return result;
+}
+
+@method_id(417)
+fun demo417(s: slice): int32 {
+    val c = lazy CustomAliasContainer.fromSlice(s);
+    __expect_lazy("[c] load response");
+    return match (c.response) {
+        CustomOk<int32> => c.response.value,
+        CustomErr => c.response.code,
+    };
+}
+
 
 fun main() {
     val s = stringHexToSlice("0102");
@@ -1940,6 +2024,7 @@ fun main() {
 @testcase | 217 |                 | 514
 @testcase | 218 |                 | 2 20 11636 20
 @testcase | 219 |                 | -1 -1
+@testcase | 317 |                 | 33 22
 
 @testcase | 300 |                 | -1
 @testcase | 301 |                 | 1 -1
@@ -1987,6 +2072,11 @@ fun main() {
 @testcase | 413 |                             | 99 12 typeid-13 11 99 typeid-13
 @testcase | 414 | -1                          | 99 12 typeid-13
 @testcase | 414 | 0                           | (null) 80 42
+@testcase | 415 |                             | 777
+@testcase | 416 | x{510000002A}               | 42
+@testcase | 416 | x{52}                       | 0
+@testcase | 417 | x{000000154_}               | 42
+@testcase | 417 | x{800000154_}               | 42
 
 @fif_codegen
 """
@@ -2246,13 +2336,17 @@ fun main() {
 
 @fif_codegen
 """
-  demo411() PROC:<{             //  s
-    1 PLDU                      //  '10
-    IFJMP:<{                    //
-      DUMPSTK                   //
-    }>                          //
-    1 PUSHINT                   //  '11=1
-    s0 DUMP DROP                //
+  demo411() PROC:<{
+    b{1} SDBEGINSQ
+    IFJMP:<{
+      DROP
+      DUMPSTK
+    }>
+    b{0} SDBEGINSQ
+    NIP
+    63 THROWIFNOT
+    1 PUSHINT
+    s0 DUMP DROP
   }>
 """
 

@@ -239,8 +239,11 @@ void TypeDataBitsN::as_abi_json(std::string& out, JsonTypeExporter& registry) co
 
 void TypeDataUnion::as_abi_json(std::string& out, JsonTypeExporter& registry) const {
   if (or_null && or_null->unwrap_alias()->try_as<TypeDataAddress>() && or_null->unwrap_alias()->try_as<TypeDataAddress>()->is_internal()) {
-    out += R"({"kind":"addressOpt"})";  // for `AddressAlias?` we also emit `address?`, not a nullable alias
-    return;
+    // for `AddressAlias?` we also emit `address?`, unless it has custom serializers
+    if (!get_custom_pack_unpack_function(or_null)) {
+      out += R"({"kind":"addressOpt"})";
+      return;
+    }
   }
   if (or_null) {
     out += R"({"kind":"nullable","inner_ty_idx":)";
