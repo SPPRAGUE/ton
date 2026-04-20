@@ -157,7 +157,7 @@ fun get123(): int
 @method_id(114)
 fun test114() {
     val fals = (get123() < 0) as int;
-    return (fals ? -1 : fals) != 0;
+    return (fals != 0 ? -1 : fals) != 0;
 }
 
 @method_id(115)
@@ -201,13 +201,13 @@ fun test117(x: int) {
     catch (ex) { t.push(ex); }
     try { assert (!!(x != 100)) throw 104; }
     catch (ex) { t.push(ex); }
-    try { assert (x) throw 105; }
+    try { assert (x != 0) throw 105; }
     catch (ex) { t.push(ex); }
     try { assert (!x) throw 106; }
     catch (ex) { t.push(ex); }
-    try { assert (~x) throw 107; }
+    try { assert ((~x) != 0) throw 107; }
     catch (ex) { t.push(ex); }
-    try { assert (~(x + 1)) throw 108; }
+    try { assert ((~(x + 1)) != 0) throw 108; }
     catch (ex) { t.push(ex); }
 
     return t;
@@ -274,7 +274,7 @@ fun test123(x: int) {
         } else if (x < 0) {
             x += 1;
         }
-    } while (x <=> 0);
+    } while ((x <=> 0) != 0);
     return iterations;
 }
 

@@ -61,3 +61,14 @@ fun refToFunInvalidMap(): int {
     val f = createEmptyMap<varint16, int8>;
     var m = f();
 }
+
+// @stderr can not use `int` as a boolean condition
+// @stderr can not use `coins` as a boolean condition
+// @stderr can not use `int16` as a boolean condition
+// @stderr hint: use not `assert (someNumber)` but `assert (someNumber != 0)`
+// @stderr hint: use not `while (someNumber)` but `while (someNumber != 0)`
+fun notBooleanCondition(i: int, c: coins, i16: int16) {
+    assert (i) throw 123;
+    do {} while (c);
+    while (i16) {};
+}

@@ -15,7 +15,7 @@ fun test1(x: int, y: int) {
     __expect_type(x = x, "int");
     __expect_type(x += x, "int");
     __expect_type(x &= x, "int");
-    __expect_type(random.uint256() ? x : y, "int");
+    __expect_type(random.uint256() != 0 ? x : y, "int");
     __expect_type(eq(x), "int");
     __expect_type(eq<int>(x), "int");
     __expect_type(eq<int?>(null), "int?");
@@ -46,7 +46,7 @@ fun test2(x: int, y: bool) {
     __expect_type(x <=> x, "int");
     __expect_type(!random.uint256(), "bool");
     __expect_type(!!(x != null), "bool");
-    __expect_type(x ? x != null : null == x, "bool");
+    __expect_type(x != 0 ? x != null : null == x, "bool");
     __expect_type(y & true, "bool");
     __expect_type(y ^= false, "bool");
     __expect_type(x && y, "bool");

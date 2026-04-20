@@ -118,7 +118,7 @@ fun geom_mean(a: int, b: int): int {
     // it is important to use `mulDivCeil` here, not `mulDivFloor` or `mulDivRound`
     var q: int = (mulDivCeil(a, b, x) - x) / 2;
     x += q;
-    } while (q);
+    } while (q != 0);
     return x;
 }
 
@@ -465,7 +465,7 @@ fun fixed248_tan(x_: int): int {
     var (q: int, x) = lshift7divmodr(x_, Pic);  // reduce mod Pi/2
     x = 2 * x - mulDivRound(q, Pid, 1 << 127);
     var (a, b) = tan_aux_f256(x);  // now a/b = tan(x')
-    if (q & 1) {
+    if ((q & 1) != 0) {
     (a, b) = (b, -a);
     }
     return mulDivRound(a, 1 << 248, b);   // either -b/a or a/b as fixed248
@@ -479,7 +479,7 @@ fun fixed248_cot(x_: int): int {
     var (q: int, x) = lshift7divmodr(x_, Pic);  // reduce mod Pi/2
     x = 2 * x - mulDivRound(q, Pid, 1 << 127);
     var (b, a) = tan_aux_f256(x);  // now b/a = tan(x')
-    if (q & 1) {
+    if ((q & 1) != 0) {
     (a, b) = (b, -a);
     }
     return mulDivRound(a, 1 << 248, b);   // either -b/a or a/b as fixed248
@@ -808,7 +808,7 @@ fun atan_auxx_f256(x: int): (int, int) {
 fun atan_f255(x: int): int {
     var s: int = (x ~>> 256);
     x.stackMoveToTop();
-    if (s) {
+    if (s != 0) {
         x = lshift256divr(-1 << 255, x);   // x:=-1/x as fixed256
     } else {
         x *= 2;   // convert to fixed256
@@ -881,7 +881,7 @@ fun fixed248_acos(x: int): int {
 fun fixed248_atan(x: int): int {
     var s: int = (x ~>> 249);
     x.stackMoveToTop();
-    if (s) {
+    if (s != 0) {
         s = sign(s);
         x = lshift256divr(-1 << 248, x);   // x:=-1/x as fixed256
     } else {
@@ -898,7 +898,7 @@ fun fixed248_atan(x: int): int {
 fun fixed248_acot(x: int): int {
     var s: int = (x ~>> 249);
     x.stackMoveToTop();
-    if (s) {
+    if (s != 0) {
         x = lshift256divr(-1 << 248, x);   // x:=-1/x as fixed256
         s = 0;
     } else {

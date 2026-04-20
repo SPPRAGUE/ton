@@ -23,6 +23,8 @@
 
 namespace tolk {
 
+static bool expect_integer(AnyExprV v_inferred);
+
 static std::string expression_as_string(AnyExprV v) {
   if (auto v_ref = v->try_as<ast_reference>()) {
     if (v_ref->sym->try_as<LocalVarPtr>() || v_ref->sym->try_as<GlobalVarPtr>()) {
@@ -79,6 +81,14 @@ static Error err_cannot_apply_operator(std::string_view operator_name, AnyExprV 
   const TypeDataUnion* rhs_nullable = rhs->inferred_type->unwrap_alias()->try_as<TypeDataUnion>();
   std::string hint = lhs_nullable || rhs_nullable ? "\n""hint: check on `null` first, or use unsafe operator `!`" : "";
   return err("can not apply operator `{}` to `{}` and `{}`{}", operator_name, lhs->inferred_type, rhs->inferred_type, hint);
+}
+
+// make an error on `if (someNumber)`, suggest `if (someNumber != 0)`
+static Error err_not_bool_as_condition(std::string_view keyword, AnyExprV cond) {
+  if (expect_integer(cond)) {
+    return err("can not use `{}` as a boolean condition\n""hint: use not `{} (someNumber)` but `{} (someNumber != 0)`", cond->inferred_type, keyword, keyword);
+  }
+  return err("can not use `{}` as a boolean condition", cond->inferred_type);
 }
 
 GNU_ATTRIBUTE_NOINLINE
@@ -180,17 +190,6 @@ static void handle_possible_compiler_internal_call(FunctionPtr cur_f, V<ast_func
       err("__expect_type failed: expected `{}`, got `{}`", v_expected_str->str_val, expr_type).collect(v, cur_f);
     }
   }
-}
-
-// detect `if (x = 1)` having its condition to fire a warning;
-// note that `if ((x = f()) == null)` and other usages of assignment is rvalue is okay
-static bool is_assignment_inside_condition(AnyExprV cond) {
-  return cond->kind == ast_assign || cond->kind == ast_set_assign;
-}
-
-// make an error for `if (x = 1)`
-static Error err_assignment_inside_condition() {
-  return err("assignment inside condition, probably it's a misprint\n""hint: if it's intentional, extract assignment as a separate statement for clarity");
 }
 
 static bool expect_integer(TypePtr inferred_type) {
@@ -605,15 +604,12 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
     parent::visit(v);
 
     AnyExprV cond = v->get_cond();
-    if (!expect_integer(cond) && !expect_boolean(cond)) {
-      err("can not use `{}` as a boolean condition", cond->inferred_type).collect(cond, cur_f);
+    if (!expect_boolean(cond)) {
+      err_not_bool_as_condition("if", cond).collect(cond, cur_f);
     }
 
     if (cond->is_always_true || cond->is_always_false) {
       warning_condition_always_true_or_false(cur_f, cond->range, cond, "ternary operator");
-    }
-    if (is_assignment_inside_condition(cond)) {
-      err_assignment_inside_condition().warning(cond, cur_f);
     }
   }
 
@@ -824,15 +820,12 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
     parent::visit(v);
 
     AnyExprV cond = v->get_cond();
-    if (!expect_integer(cond) && !expect_boolean(cond)) {
-      err("can not use `{}` as a boolean condition", cond->inferred_type).collect(cond, cur_f);
+    if (!expect_boolean(cond)) {
+      err_not_bool_as_condition("if", cond).collect(cond, cur_f);
     }
 
     if (cond->is_always_true || cond->is_always_false) {
       warning_condition_always_true_or_false(cur_f, v->keyword_range(), cond, "`if`");
-    }
-    if (is_assignment_inside_condition(cond)) {
-      err_assignment_inside_condition().warning(cond, cur_f);
     }
   }
 
@@ -849,15 +842,12 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
     parent::visit(v);
 
     AnyExprV cond = v->get_cond();
-    if (!expect_integer(cond) && !expect_boolean(cond)) {
-      err("can not use `{}` as a boolean condition", cond->inferred_type).collect(cond, cur_f);
+    if (!expect_boolean(cond)) {
+      err_not_bool_as_condition("while", cond).collect(cond, cur_f);
     }
 
     if (cond->is_always_true || cond->is_always_false) {
       warning_condition_always_true_or_false(cur_f, v->keyword_range(), cond, "`while`");
-    }
-    if (is_assignment_inside_condition(cond)) {
-      err_assignment_inside_condition().warning(cond, cur_f);
     }
   }
 
@@ -865,15 +855,12 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
     parent::visit(v);
 
     AnyExprV cond = v->get_cond();
-    if (!expect_integer(cond) && !expect_boolean(cond)) {
-      err("can not use `{}` as a boolean condition", cond->inferred_type).collect(cond, cur_f);
+    if (!expect_boolean(cond)) {
+      err_not_bool_as_condition("while", cond).collect(cond, cur_f);
     }
 
     if (cond->is_always_true || cond->is_always_false) {
       warning_condition_always_true_or_false(cur_f, v->keyword_range(), cond, "`do while`");
-    }
-    if (is_assignment_inside_condition(cond)) {
-      err_assignment_inside_condition().warning(cond, cur_f);
     }
   }
 
@@ -892,8 +879,8 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
     parent::visit(v);
 
     AnyExprV cond = v->get_cond();
-    if (!expect_integer(cond) && !expect_boolean(cond)) {
-      err("can not use `{}` as a boolean condition", cond->inferred_type).collect(cond, cur_f);
+    if (!expect_boolean(cond)) {
+      err_not_bool_as_condition("assert", cond).collect(cond, cur_f);
     }
     if (!expect_thrown_code(v->get_thrown_code()->inferred_type)) {
       err("thrown excNo of `assert` must be an integer, got `{}`", v->get_thrown_code()->inferred_type).collect(v->get_thrown_code(), cur_f);
@@ -901,9 +888,6 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
 
     if (cond->is_always_true || cond->is_always_false) {
       warning_condition_always_true_or_false(cur_f, v->keyword_range(), cond, "`assert`");
-    }
-    if (is_assignment_inside_condition(cond)) {
-      err_assignment_inside_condition().warning(cond, cur_f);
     }
   }
 

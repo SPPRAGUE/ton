@@ -332,7 +332,7 @@ fun test16() {
     __expect_type(c1, "ComplexWrapPair<int>");
     var c2 = wrap(makePair(3, 4));
     __expect_type(c2, "Wrapper<Pair<int, int>>");
-    if (0) { c1 = c2; c2 = c1; }
+    if (false) { c1 = c2; c2 = c1; }
     c1 as Wrapper<Pair<int,int>>; c2 as ComplexWrapPair<int>;
     return (c1, c2);
 }
