@@ -122,7 +122,7 @@ static bool is_TValue_cell_or_CellT(TypePtr TValue) {
   if (get_custom_pack_unpack_function(TValue)) {
     return false;
   }
-  return TValue->unwrap_alias() == TypeDataCell::create() || is_type_cellT(TValue->unwrap_alias())
+  return TValue->unwrap_alias()->is_cell_or_CellT()
       || TValue->unwrap_alias() == TypeDataString::create();
 }
 

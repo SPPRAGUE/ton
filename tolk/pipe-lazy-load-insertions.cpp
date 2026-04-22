@@ -201,7 +201,7 @@ static void check_lazy_operator_used_correctly(FunctionPtr cur_f, V<ast_lazy_ope
 
   // it should be either a struct or a union of structs
   TypePtr expr_type = v->inferred_type;
-  if (get_custom_pack_unpack_function(expr_type) || is_type_cellT(expr_type)) {
+  if (get_custom_pack_unpack_function(expr_type) || expr_type->unwrap_alias()->is_cell_or_CellT()) {
     err_lazy_for_wrong_variant(expr_type).fire(v->keyword_range(), cur_f);
   }
   if (expr_type->unwrap_alias()->try_as<TypeDataStruct>()) {

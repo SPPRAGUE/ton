@@ -198,7 +198,12 @@ bool Optimizer::detect_rewrite_MY_skip_bits() {
     }
 
     std::string s_number(s_op_len.substr(s_op_len.find(' ') + 1));
-    total_skip_bits += std::stoi(s_number); // it's a small number, stoi() is safe
+    int n_skip = std::stoi(s_number);   // it's a small number, stoi() is safe
+    if (total_skip_bits + n_skip > 1023) {
+      break;
+    }
+
+    total_skip_bits += n_skip;
     n_merged++;
   }
 

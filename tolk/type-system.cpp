@@ -111,6 +111,13 @@ TypePtr TypeData::unwrap_alias_slow_path(TypePtr lhs) {
   return unwrapped;
 }
 
+bool TypeData::is_cell_or_CellT() const {
+  if (const TypeDataStruct* t_struct = this->try_as<TypeDataStruct>()) {
+    return t_struct->struct_ref->is_instantiation_of_CellT();
+  }
+  return this == TypeDataCell::create();
+}
+
 // having `type UserId = int` and `type OwnerId = int` (when their underlying types are equal),
 // make `UserId` and `OwnerId` NOT equal and NOT assignable (although they'll have the same type_id);
 // it allows overloading methods for these types independently, e.g.

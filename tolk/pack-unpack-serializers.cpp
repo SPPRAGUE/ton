@@ -43,13 +43,6 @@ std::vector<var_idx_t> pre_compile_is_type(CodeBlob& code, TypePtr expr_type, Ty
 std::vector<var_idx_t> transition_to_target_type(std::vector<var_idx_t>&& rvect, CodeBlob& code, TypePtr original_type, TypePtr target_type, AnyV origin);
 std::vector<var_idx_t> gen_inline_fun_call_in_place(CodeBlob& code, TypePtr ret_type, AnyV origin, FunctionPtr f_inlined, AnyExprV self_obj, bool is_before_immediate_return, const std::vector<std::vector<var_idx_t>>& vars_per_arg);
 
-bool is_type_cellT(TypePtr any_type) {
-  if (const TypeDataStruct* t_struct = any_type->try_as<TypeDataStruct>()) {
-    return t_struct->struct_ref->is_instantiation_of_CellT();
-  }
-  return false;
-}
-
 // Unlike regular methods, custom serializers must not leak from aliases to underlying types.
 // Example:
 // > struct Box { ... }
@@ -1644,7 +1637,7 @@ static std::unique_ptr<ISerializer> get_serializer_for_type(TypePtr any_type) {
   if (any_type == TypeDataBool::create()) {
     return std::make_unique<S_Bool>();
   }
-  if (any_type == TypeDataCell::create() || is_type_cellT(any_type)) {
+  if (any_type->is_cell_or_CellT()) {
     return std::make_unique<S_RawTVMcell>();
   }
   if (any_type == TypeDataBuilder::create()) {
@@ -1695,7 +1688,7 @@ static std::unique_ptr<ISerializer> get_serializer_for_type(TypePtr any_type) {
         return std::make_unique<S_Maybe>(t_union);
       }
       TypePtr or_null = t_union->or_null->unwrap_alias();
-      if (or_null == TypeDataCell::create() || is_type_cellT(or_null)) {
+      if (or_null->is_cell_or_CellT()) {
         return std::make_unique<S_RawTVMcellOrNull>();
       }
       if (or_null->try_as<TypeDataAddress>() && or_null->try_as<TypeDataAddress>()->is_internal()) {

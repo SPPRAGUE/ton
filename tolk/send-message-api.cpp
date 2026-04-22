@@ -39,7 +39,7 @@ static bool is_body_already_ref(TypePtr bodyT) {
   if (const TypeDataAlias* t_alias = bodyT->try_as<TypeDataAlias>()) {
     return is_body_already_ref(t_alias->underlying_type);
   }
-  return bodyT == TypeDataCell::create() || is_type_cellT(bodyT);
+  return bodyT->is_cell_or_CellT();
 }
 
 // calculate `addrHash &= mask` where mask = `(1 << (256 - SHARD_DEPTH)) - 1`

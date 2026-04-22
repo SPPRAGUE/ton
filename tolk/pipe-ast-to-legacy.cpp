@@ -469,7 +469,7 @@ static FunctionPtr choose_eq_function_for_types(TypePtr lhs_type, TypePtr rhs_ty
   if (lhs_type->try_as<TypeDataAddress>() && rhs_type->try_as<TypeDataAddress>()) {
     return lookup_function("slice.bitsEqual");
   }
-  if (lhs_type->try_as<TypeDataCell>() && rhs_type->try_as<TypeDataCell>()) {
+  if (lhs_type->is_cell_or_CellT() && rhs_type->is_cell_or_CellT()) {
     return lookup_function("cell.hashEqual");
   }
   return lookup_function("_==_");

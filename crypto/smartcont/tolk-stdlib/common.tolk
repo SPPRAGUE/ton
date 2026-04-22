@@ -186,6 +186,7 @@ type void = builtin
 /// ```
 /// Note, that `st = MyStorage.fromSlice(s)` does NOT deep-load any refs; `st.extra` is `Cell<T>`, not `T`;
 /// you should manually call `st.extra.load()` to get `T` (ExtraData in this example).
+/// Typed cells are comparable with `==` and `!=`, just like raw `cell`.
 struct Cell<T> {
     private readonly tvmCell: cell
 }

@@ -238,8 +238,8 @@ static bool check_eq_neq_operator(TypePtr lhs_type, TypePtr rhs_type, bool& not_
     not_integer_comparison = true;   // `address` can be compared with ==, but it's handled specially
     return true;
   }
-  if (lhs_type->unwrap_alias() == TypeDataCell::create() && rhs_type->unwrap_alias() == TypeDataCell::create()) {
-    not_integer_comparison = true;   // `cell` can be compared with ==, but it's handled specially (by hash)
+  if (lhs_type->unwrap_alias()->is_cell_or_CellT() && rhs_type->unwrap_alias()->is_cell_or_CellT()) {
+    not_integer_comparison = true;   // cells can be compared with ==, but it's handled specially (by hash)
     return true;
   }
 
