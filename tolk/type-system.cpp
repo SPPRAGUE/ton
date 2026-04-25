@@ -625,6 +625,9 @@ bool TypeDataInt::can_rhs_be_assigned(TypePtr rhs) const {
   if (rhs->try_as<TypeDataIntN>()) {
     return true;
   }
+  if (rhs->try_as<TypeDataEnum>()) {
+    return true;
+  }
   if (rhs == TypeDataCoins::create()) {
     return true;
   }
@@ -815,6 +818,10 @@ bool TypeDataTensor::can_rhs_be_assigned(TypePtr rhs) const {
 bool TypeDataIntN::can_rhs_be_assigned(TypePtr rhs) const {
   if (rhs == TypeDataInt::create()) {
     return true;
+  }
+  if (rhs->try_as<TypeDataEnum>()) {
+    // `ExitCode.NotOwner` can be assigned to `int32`; we don't check that it fits N, just accept
+    return !is_variadic;
   }
   if (const TypeDataIntN* rhs_intN = rhs->try_as<TypeDataIntN>()) {
     // `int8` is NOT assignable to `int32` without `as`

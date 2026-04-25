@@ -14,3 +14,10 @@ fun makePair(): array<int> {
 fun shapeLenMismatch() {
     One [1, 2]
 }
+
+enum Color { Red, Green, Blue }
+
+// @stderr can not apply operator `+` to `int` and `Color`
+fun sumEnum() {
+    return 1 + Color.Blue;
+}
