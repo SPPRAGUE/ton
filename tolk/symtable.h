@@ -356,6 +356,7 @@ struct StructData final : Symbol {
       : pack_prefix(pack_prefix), prefix_len(prefix_len) {}
 
     bool exists() const { return prefix_len != 0; }
+    bool operator==(const PackOpcode& rhs) const { return pack_prefix == rhs.pack_prefix && prefix_len == rhs.prefix_len; }
 
     std::string format_as_string(bool as_fift_slice) const;  // "0x..." / "0b..." or "x{...}" / "b{...}"
   };

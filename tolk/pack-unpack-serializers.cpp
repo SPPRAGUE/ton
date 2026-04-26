@@ -1490,6 +1490,24 @@ struct S_CustomReceiverForPackUnpack final : ISerializer {
 // but if some prefixes are specified, some not — it's an error
 //
 
+// Check opcodes within a union are not equal to each other, e.g.
+// > struct (0x1234) A
+// > struct (0x1234) B
+// If so, `because_msg` is filled and shown to a user.
+// Note that we do NOT check that prefixes form a valid prefix tree, because an invalid tree is okay in some cases.
+static void check_opcodes_are_not_equal(const TypeDataUnion* t_union, std::string& because_msg) {
+  for (int i = 0; i < t_union->size(); ++i) {
+    StructPtr lhs_struct = t_union->variants[i]->unwrap_alias()->try_as<TypeDataStruct>()->struct_ref;
+    for (int j = i + 1; j < t_union->size(); ++j) {
+      StructPtr rhs_struct = t_union->variants[j]->unwrap_alias()->try_as<TypeDataStruct>()->struct_ref;
+      if (lhs_struct->opcode == rhs_struct->opcode) {
+        because_msg = "because both structs `" + lhs_struct->as_human_readable() + "` and `" + rhs_struct->as_human_readable() + "` have serialization prefix " + lhs_struct->opcode.format_as_string(false);
+        return;
+      }
+    }
+  }
+}
+
 
 std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std::string& because_msg, bool& tree_auto_generated) {
   const TypeDataUnion* t_union = union_type->try_as<TypeDataUnion>();
@@ -1514,8 +1532,10 @@ std::vector<PackOpcode> auto_generate_opcodes_for_union(TypePtr union_type, std:
   }
 
   // `A | B | C`, all of them have opcodes — just use them;
-  // for instance, `A | B` is not either (0/1 + data), but uses manual opcodes
+  // for instance, `A | B` is not either (0/1 + data), but uses manual opcodes;
+  // they must still form a valid prefix tree
   if (n_have_opcode == t_union->size()) {
+    check_opcodes_are_not_equal(t_union, because_msg);
     for (TypePtr variant : t_union->variants) {
       result.push_back(variant->unwrap_alias()->try_as<TypeDataStruct>()->struct_ref->opcode);
     }
