@@ -113,10 +113,11 @@ fun geom_mean(a: int, b: int): int {
     var t: int = log2_floor_p1(b);
     // NB: (a-b)/2+b == (a+b)/2, but without overflow for large a and b
     var x: int = (s == t ? (a - b) / 2 + b : 1 << ((s + t) / 2));
+    var q: int;
     do {
     // if always used with b=2^const, may be optimized to "const LSHIFTDIVC#"
     // it is important to use `mulDivCeil` here, not `mulDivFloor` or `mulDivRound`
-    var q: int = (mulDivCeil(a, b, x) - x) / 2;
+    q = (mulDivCeil(a, b, x) - x) / 2;
     x += q;
     } while (q != 0);
     return x;

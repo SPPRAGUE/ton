@@ -57,12 +57,13 @@ fun test5(id: int): (int, int) {
 @method_id(106)
 fun test6(x: int): int {
     var i: int = 0;
+    var f: bool;
     do {
         i = i + 1;
         if (i > 5) {
             return 1;
         }
-        var f: bool = (i * i == 64);
+        f = (i * i == 64);
     } while (!f);
     return -1;
 }

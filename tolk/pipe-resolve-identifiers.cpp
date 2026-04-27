@@ -280,8 +280,8 @@ class AssignSymInsideFunctionVisitor final : public ASTVisitorFunctionBody {
   void visit(V<ast_do_while_statement> v) override {
     current_scope.open_scope();
     parent::visit(v->get_body());
-    parent::visit(v->get_cond()); // in 'while' condition it's ok to use variables declared inside do
     current_scope.close_scope();
+    parent::visit(v->get_cond());
   }
 
   void visit(V<ast_try_catch_statement> v) override {
