@@ -1002,6 +1002,6 @@ fun main() {
   }>
 """
 
-@fif_codegen DECLPROC checkGeneric3<int,int8,int16>()
+@fif_codegen DECLPROC checkGeneric3<int,`int8,`int16>()
 
  */
