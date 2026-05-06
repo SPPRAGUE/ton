@@ -187,7 +187,7 @@ void pipeline_collect_abi_output(std::ostream& os) {
   bool collect_emitted_events = true;
   bool collect_thrown_errors = true;
 
-  const SrcFile* entrypoint_file = G.all_src_files.get_entrypoint_file();
+  SrcFilePtr entrypoint_file = G.all_src_files.get_entrypoint_file();
   if (entrypoint_file->has_contract_directive()) {
     const ContractDirective* directive = entrypoint_file->contract_directive;
     populate_abi_from_contract_directive(&abi, directive);

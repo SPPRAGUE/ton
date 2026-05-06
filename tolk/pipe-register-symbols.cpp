@@ -290,15 +290,15 @@ static FunctionPtr register_function(V<ast_function_declaration> v, FunctionPtr 
 }
 
 struct FileSymbolsRegistrationContext {
-  std::unordered_set<const SrcFile*> registered_files;
-  std::vector<const SrcFile*> import_stack;
+  std::unordered_set<SrcFilePtr> registered_files;
+  std::vector<SrcFilePtr> import_stack;
 
-  bool is_in_import_stack(const SrcFile* file) const {
+  bool is_in_import_stack(SrcFilePtr file) const {
     return std::find(import_stack.begin(), import_stack.end(), file) != import_stack.end();
   }
 
   // find a bottommost file with `contract` directive
-  const SrcFile* find_nearest_contract_file() const {
+  SrcFilePtr find_nearest_contract_file() const {
     for (auto it = import_stack.rbegin(); it != import_stack.rend(); ++it) {
       if ((*it)->has_contract_directive()) {
         return *it;
@@ -308,7 +308,7 @@ struct FileSymbolsRegistrationContext {
   }
 };
 
-static void iterate_through_file_symbols(const SrcFile* file, FileSymbolsRegistrationContext& ctx) {
+static void iterate_through_file_symbols(SrcFilePtr file, FileSymbolsRegistrationContext& ctx) {
   if (ctx.is_in_import_stack(file)) {
     return;   // import cycle, already being checked in this path
   }
@@ -325,7 +325,7 @@ static void iterate_through_file_symbols(const SrcFile* file, FileSymbolsRegistr
   bool is_imported = !ctx.import_stack.empty();
   ctx.import_stack.push_back(file);
   bool should_register_symbols = ctx.registered_files.insert(file).second;
-  const SrcFile* nearest_contract_file = ctx.find_nearest_contract_file();
+  SrcFilePtr nearest_contract_file = ctx.find_nearest_contract_file();
   std::vector<V<ast_function_declaration>> skipped_get_fun;
 
   // second pass: recursively visit imports and validate contract entrypoints in this import stack

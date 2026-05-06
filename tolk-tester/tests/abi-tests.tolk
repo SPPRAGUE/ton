@@ -49,6 +49,7 @@ struct (0x13) SwapMM {
 }
 
 const ERR_UNUSED_ABI = 777
+const ERR_NOT_ADMIN = 123
 
 struct (0x14) UnusedOutgoing {
 }
@@ -71,17 +72,28 @@ fun unusedAbiOutgoing() {
     });
 }
 
-/// Runs a tiny script.
-/// Not onInternalMessage.
-/// @param amount initial stack value
-/// @param times added stack value
-fun main(amount: int, times: int): int {
+fun realSend() {
     createMessage({
         bounce: BounceMode.NoBounce,
         value: ton("0.1"),
         dest: address("0:ca6e321c7cce9ecedf0a8ca2492ec8592494aa5fb5ce0387dff96ef6af982a3e"),
         body: SwapMM {}.toCell(),
     });
+    if ([0].last() != 0) {
+        realThrow()
+    }
+}
+
+fun realThrow() {
+    throw ERR_NOT_ADMIN
+}
+
+/// Runs a tiny script.
+/// Not onInternalMessage.
+/// @param amount initial stack value
+/// @param times added stack value
+fun main(amount: int, times: int): int {
+    realSend();
     return amount + times;
 }
 
@@ -90,6 +102,43 @@ fun main(amount: int, times: int): int {
 get fun currentCounter(): int32 {
     val storage = lazy ContractStorage.fromCell(contract.getData());
     return storage.counter;
+}
+
+struct OneOrTwo<T1, T2> {
+    uni: T1 | T2
+}
+
+/// Generic box alias.
+type Box<T> = T | int32
+
+struct Holder<T> {
+    v: Box<T>
+}
+
+fun Holder<T>.packToBuilder(self, mutate b: builder) {}
+fun Holder<T>.unpackFromSlice(mutate s: slice): Holder<T> { return { v: 0 as int32 } }
+
+/// Alias fallback source.
+struct AliasFallbackSource {
+    value: int32
+}
+
+type AliasFallback = AliasFallbackSource
+
+get fun multiple(): (Box<int64>, Holder<int32>, OneOrTwo<int32, int64>)? {
+    return null
+}
+
+get fun fallbackAlias(d: Defaults): AliasFallback? {
+    return null
+}
+
+type Small = uint8
+
+const C: Small = 7
+
+struct Defaults {
+    a: int = C
 }
 
 /**
@@ -105,30 +154,13 @@ get fun currentCounter(): int32 {
 
 @abi_json
 """
+  "thrown_errors": [
     {
-      "kind": "struct",
-      "name": "Increment",
-      "prefix": {
-        "prefix_num": 1,
-        "prefix_len": 8
-      },
-      "fields": [
-        {
-          "name": "by",
-          "ty_idx": {"kind":"intN","n":32},
-          "description": "Amount to add"
-        },
-        {
-          "name": "queryId",
-          "ty_idx": {"kind":"uintN","n":64},
-          "default_value": {
-            "kind": "int",
-            "v": "0"
-          }
-        }
-      ],
-      "description": "Increases the counter."
-    },
+      "kind": "constant",
+      "name": "ERR_NOT_ADMIN",
+      "err_code": 123
+    }
+  ],
 """
 
 @abi_json
@@ -136,15 +168,16 @@ get fun currentCounter(): int32 {
     {
       "kind": "struct",
       "name": "ContractStorage",
+      "ty_idx": 14,
       "fields": [
         {
           "name": "counter",
-          "ty_idx": {"kind":"intN","n":32},
+          "ty_idx": 8,
           "description": "Current counter value"
         },
         {
           "name": "owner",
-          "ty_idx": {"kind":"address"},
+          "ty_idx": 7,
           "description": "Contract owner"
         }
       ],
@@ -157,11 +190,12 @@ get fun currentCounter(): int32 {
     {
       "kind": "struct",
       "name": "ExtraPayload",
+      "ty_idx": 16,
       "fields": [
         {
           "name": "note",
-          "ty_idx": {"kind":"remaining"},
-          "client_ty": {"kind":"string"},
+          "ty_idx": 17,
+          "client_ty_idx": 18,
           "description": "Human-readable note"
         }
       ],
@@ -171,9 +205,45 @@ get fun currentCounter(): int32 {
 
 @abi_json
 """
+    {
+      "kind": "struct",
+      "name": "Increment",
+      "ty_idx": 12,
+      "prefix": {
+        "prefix_num": 1,
+        "prefix_len": 8
+      },
+      "fields": [
+        {
+          "name": "by",
+          "ty_idx": 8,
+          "description": "Amount to add"
+        },
+        {
+          "name": "queryId",
+          "ty_idx": 11,
+          "default_value": {
+            "kind": "int",
+            "v": "0"
+          }
+        }
+      ],
+      "description": "Increases the counter."
+    },
+"""
+
+@abi_json
+"""
+  "unique_types": [
+    {"kind":"void"},
+    {"kind":"int"},
+"""
+
+@abi_json
+"""
   "storage": {
-    "storage_ty": {"kind":"StructRef","struct_name":"ContractStorage"},
-    "storage_at_deployment_ty": {"kind":"StructRef","struct_name":"InitStorage"}
+    "storage_ty_idx": 14,
+    "storage_at_deployment_ty_idx": 15
   },
 """
 
@@ -181,42 +251,109 @@ get fun currentCounter(): int32 {
 """
   "incoming_messages": [
     {
-      "body_ty": {"kind":"StructRef","struct_name":"Increment"}
+      "body_ty_idx": 12
     },
     {
-      "body_ty": {"kind":"StructRef","struct_name":"Reset"}
+      "body_ty_idx": 13
     }
   ],
 """
 
 @abi_json
 """
-  "get_methods": [
     {
       "tvm_method_id": 0,
       "name": "main",
       "parameters": [
         {
           "name": "amount",
-          "ty": {"kind":"int"},
+          "ty_idx": 1,
           "description": "initial stack value"
         },
         {
           "name": "times",
-          "ty": {"kind":"int"},
+          "ty_idx": 1,
           "description": "added stack value"
         }
       ],
-      "return_ty": {"kind":"int"},
+      "return_ty_idx": 1,
       "description": "Runs a tiny script.\nNot onInternalMessage."
     },
+"""
+
+@abi_json
+"""
     {
-      "tvm_method_id": 117456,
-      "name": "currentCounter",
-      "parameters": [
+      "kind": "struct",
+      "name": "OneOrTwo",
+      "ty_idx": 32,
+      "type_params": [
+        "T1",
+        "T2"
       ],
-      "return_ty": {"kind":"intN","n":32},
-      "description": "Reads current counter.\nFrom storage."
+      "fields": [
+        {
+          "name": "uni",
+          "ty_idx": 33
+        }
+      ]
+    },
+"""
+
+@abi_json
+"""
+      "kind": "alias",
+      "name": "Box",
+      ...
+      "description": "Generic box alias."
+"""
+
+@abi_json
+"""
+      "kind": "alias",
+      "name": "AliasFallback",
+      ...
+      "description": "Alias fallback source."
+"""
+
+@abi_json
+"""
+    {"kind":"StructRef","struct_name":"OneOrTwo","type_args_ty_idx":[8,10]},
+"""
+
+@abi_json
+"""
+    {"kind":"nullable","inner_ty_idx":34,"stack_type_id":137,"stack_width":6},
+"""
+
+@abi_json
+"""
+  "struct_instantiations": [
+    {
+      "ty_idx": 25,
+      "struct_name": "Holder<int32>",
+      "monomorphic_fields_ty_idx": [
+        26
+      ]
+    },
+    {
+      "ty_idx": 28,
+      "struct_name": "OneOrTwo<int32, int64>",
+      "monomorphic_fields_ty_idx": [
+        29
+      ]
+    }
+  ],
+  "alias_instantiations": [
+    {
+      "ty_idx": 20,
+      "alias_name": "Box<int64>",
+      "monomorphic_target_ty_idx": 21
+    },
+    {
+      "ty_idx": 26,
+      "alias_name": "Box<int32>",
+      "monomorphic_target_ty_idx": 8
     }
   ],
 """
@@ -225,9 +362,27 @@ get fun currentCounter(): int32 {
 """
   "outgoing_messages": [
     {
-      "body_ty": {"kind":"StructRef","struct_name":"SwapMM"}
+      "body_ty_idx": 19
     }
   ],
+"""
+
+@abi_json
+"""
+      "fields": [
+        {
+          "name": "a",
+          "ty_idx": 1,
+          "default_value": {
+            "kind": "castTo",
+            "inner": {
+              "kind": "int",
+              "v": "7"
+            },
+            "cast_to_ty_idx": 40
+          }
+        }
+      ]
 """
 
 @abi_json_avoid UnusedOutgoing

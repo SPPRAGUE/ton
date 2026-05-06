@@ -26,7 +26,7 @@ void Symbol::check_import_exists_when_used_from(FunctionPtr cur_f, AnyV usage) c
 #ifdef TOLK_DEBUG
   tolk_assert(ident_anchor != nullptr);
 #endif
-  const SrcFile* declared_in = ident_anchor->range.get_src_file();
+  SrcFilePtr declared_in = ident_anchor->range.get_src_file();
   bool has_import = false;
   for (const SrcFile::ImportDirective& import : usage->range.get_src_file()->imports) {
     has_import |= import.imported_file == declared_in;

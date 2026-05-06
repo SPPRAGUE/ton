@@ -1548,14 +1548,14 @@ template<>
 // ast_import_directive is an import at the top of the file
 // examples: `import "another.tolk"` / `import "@stdlib/tvm-dicts"`
 struct Vertex<ast_import_directive> final : ASTOtherVararg {
-  const SrcFile* file = nullptr;    // assigned after imports have been resolved, just after parsing a file to ast
+  SrcFilePtr file = nullptr;    // assigned after imports have been resolved, just after parsing a file to ast
 
   auto get_file_leaf() const { return children.at(0)->as<ast_string_const>(); }
 
   std::string get_file_name() const { return static_cast<std::string>(children.at(0)->as<ast_string_const>()->str_val); }
 
   Vertex* mutate() const { return const_cast<Vertex*>(this); }
-  void assign_src_file(const SrcFile* file);
+  void assign_src_file(SrcFilePtr file);
 
   Vertex(SrcRange range, V<ast_string_const> file_name)
     : ASTOtherVararg(ast_import_directive, range, {file_name}) {}
@@ -1567,11 +1567,11 @@ template<>
 // particularly, it contains imports that lead to loading other files
 // a whole program consists of multiple parsed files, each of them has a parsed ast tree (stdlib is also parsed)
 struct Vertex<ast_tolk_file> final : ASTOtherVararg {
-  const SrcFile* const file;
+  SrcFilePtr file;
 
   const std::vector<AnyV>& get_toplevel_declarations() const { return children; }
 
-  Vertex(const SrcFile* file, SrcRange range, std::vector<AnyV> toplevel_declarations)
+  Vertex(SrcFilePtr file, SrcRange range, std::vector<AnyV> toplevel_declarations)
     : ASTOtherVararg(ast_tolk_file, range, std::move(toplevel_declarations))
     , file(file) {}
 };

@@ -602,7 +602,7 @@ LexingTrie TolkLanguageGrammar::trie;
 // (`start`, `cur` and `end`, as well as every Token str_val, points inside file->text).
 //
 
-Lexer::Lexer(const SrcFile* file)
+Lexer::Lexer(SrcFilePtr file)
   : file_id(file->file_id)
   , p_start(file->text.data())
   , p_end(p_start + file->text.size())

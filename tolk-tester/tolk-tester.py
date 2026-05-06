@@ -348,9 +348,11 @@ class TolkTestFile:
         return self.artifacts_folder + "/runner.fif"
 
     def run_and_check(self):
-        cmd_args = [TOLK_EXECUTABLE, "-o", self.get_compiled_fif_filename()] + self.more_cmd_line_options
-        if self.abi_json:
-            cmd_args += ["--abi-output", self.get_compiled_abi_filename()]
+        cmd_args = ([TOLK_EXECUTABLE, "-o", self.get_compiled_fif_filename(),
+                     "--no-symbol-types", "--no-compiled-boc"]
+                    + self.more_cmd_line_options)
+        if not self.abi_json:
+            cmd_args += ["--no-contract-abi"]
         if not self.enable_tolk_lines_comments:
             cmd_args = cmd_args + ["--no-line-comments"]
         res = subprocess.run(cmd_args + [self.tolk_filename], capture_output=True, timeout=10)

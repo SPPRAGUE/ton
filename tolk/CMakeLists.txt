@@ -35,6 +35,7 @@ set(TOLK_SOURCE
         pipe-transform-on-message.cpp
         pipe-ast-to-legacy.cpp
         pipe-find-unused-symbols.cpp
+        pipe-collect-symbol-types.cpp
         pipe-generate-fif-output.cpp
         pipe-collect-abi.cpp
         type-system.cpp
@@ -43,6 +44,7 @@ set(TOLK_SOURCE
         generics-helpers.cpp
         lazy-helpers.cpp
         overload-resolution.cpp
+        source-maps.cpp
         abscode.cpp
         analyzer.cpp
         asmops.cpp
@@ -88,6 +90,16 @@ if (USE_EMSCRIPTEN)
           -flto
   )
   target_compile_options(tolkfiftlib PRIVATE -fexceptions -fno-stack-protector -flto)
-endif ()
+elseif (EMULATOR_STATIC)
+  add_library(tolkfiftlib STATIC tolk-wasm.cpp ${TOLK_SOURCE})
+  target_include_directories(tolkfiftlib PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+  target_link_libraries(tolkfiftlib PUBLIC fift-lib git)
+  if (APPLE)
+    target_link_options(tolkfiftlib PRIVATE
+            "LINKER:-exported_symbol,_tolk_compile"
+            "LINKER:-exported_symbol,_tolk_version"
+    )
+  endif()
+endif()
 
 install(TARGETS tolk RUNTIME DESTINATION bin)

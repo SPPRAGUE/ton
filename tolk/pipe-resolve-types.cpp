@@ -674,7 +674,7 @@ public:
     }
   }
 
-  void start_visiting_contract_directive(const SrcFile* file) {
+  void start_visiting_contract_directive(SrcFilePtr file) {
     type_nodes_visitor = TypeNodesVisitorResolver(nullptr, nullptr, nullptr, false);
 
     const ContractDirective* d = file->contract_directive;
@@ -753,7 +753,7 @@ void pipeline_resolve_types_and_aliases() {
 
   ResolveTypesInsideFunctionVisitor visitor;
 
-  for (const SrcFile* file : G.all_src_files) {
+  for (SrcFilePtr file : G.all_src_files) {
     for (AnyV v : file->ast->as<ast_tolk_file>()->get_toplevel_declarations()) {
       if (auto v_fun = v->try_as<ast_function_declaration>()) {
         // v_fun->fun_ref may be nullptr if it's `get fun` implicitly imported and ignored because of `contract`

@@ -317,6 +317,7 @@ bool Op::std_compute_used_vars(const VarDescrList& next_var_info, bool disabled)
 bool Op::compute_used_vars(bool edit, const VarDescrList& next_var_info) {
   switch (cl) {
     case _Nop:
+    case _DebugMark:
       return set_var_info_except(next_var_info, left);
     case _IntConst:
     case _SliceConst:
@@ -557,6 +558,7 @@ bool OpList::prune_unreachable() {
       case Op::_UnTuple:
       case Op::_Import:
       case Op::_Let:
+      case Op::_DebugMark:
         reach = true;
         break;
       case Op::_Return:
@@ -758,6 +760,7 @@ VarDescrList Op::fwd_analyze(VarDescrList values) {
   switch (cl) {
     case _Nop:
     case _Import:
+    case _DebugMark:
       break;
     case _Return:
       values.set_unreachable();
@@ -1001,6 +1004,7 @@ bool OpList::mark_noreturn() {
       case Op::_IntConst:
       case Op::_SliceConst:
       case Op::_SnakeStringConst:
+      case Op::_DebugMark:
       case Op::_Let:
       case Op::_Tuple:
       case Op::_UnTuple:

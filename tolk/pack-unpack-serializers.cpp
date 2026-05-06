@@ -268,7 +268,7 @@ void LazyMatchOptions::save_match_result_on_arm_end(CodeBlob& code, AnyV origin,
   } else if (add_return_to_all_arms) {
     // if it's `match` statement, even if an arm is an expression, it's void, actually
     // moreover, if it's the last statement in a function, add implicit "return" to all match cases to produce IFJMP
-    code.add_return(origin);
+    code.add_return(origin, {}, code.fun_ref);
   }
 }
 
@@ -935,6 +935,19 @@ struct S_MultipleConstructors final : ISerializer {
       code.add_call(origin, {ctx->ir_slice0, ir_prefix_eq[0]}, std::move(args), f_tryStripPrefix);
       Op& if_op = code.add_if_else(origin, ir_prefix_eq);
       code.push_set_cur(if_op.block0);
+      if (options.lazy_var_ref && options.match_blocks[i].arm_variant) {
+        TypePtr variant_ty = options.match_blocks[i].arm_variant;
+        int variant_width = variant_ty->get_width_on_stack();
+        int total_width = static_cast<int>(options.lazy_var_ref->ir_idx.size());
+        int value_start = total_width - 1 - variant_width;
+        std::vector ir_variant(options.lazy_var_ref->ir_idx.begin() + value_start, options.lazy_var_ref->ir_idx.begin() + value_start + variant_width);
+        code.add_debug_mark(DebugMarkSmartCast{
+          .local_ref = options.lazy_var_ref,
+          .smart_cast_type = variant_ty,
+          .ir_slots = std::move(ir_variant),
+        });
+        code.add_extra_mark_location(options.match_blocks[i].v_body->range);
+      }
       std::vector ith_result = pre_compile_expr(options.match_blocks[i].v_body, code);
       options.save_match_result_on_arm_end(code, origin, &options.match_blocks[i], std::move(ith_result), ir_result);
       code.close_pop_cur(origin);
@@ -1542,7 +1555,7 @@ std::vector<var_idx_t> create_default_PackOptions(CodeBlob& code, AnyV origin) {
   std::vector ir_defaults = {
     code.create_int(origin, 0, "(zero)"),    // skipBitsNFieldsValidation
   };
-  code.add_let(origin, ir_options, std::move(ir_defaults));  
+  code.add_let(origin, ir_options, std::move(ir_defaults));
   return ir_options;
 }
 
@@ -1556,7 +1569,7 @@ std::vector<var_idx_t> create_default_UnpackOptions(CodeBlob& code, AnyV origin)
     code.create_int(origin, -1, "(true)"),     // assertEndAfterReading
     code.create_int(origin, 63, "(excno)"),    // throwIfOpcodeDoesNotMatch
   };
-  code.add_let(origin, ir_options, std::move(ir_defaults));  
+  code.add_let(origin, ir_options, std::move(ir_defaults));
   return ir_options;
 }
 

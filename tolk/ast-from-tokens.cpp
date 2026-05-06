@@ -2063,7 +2063,7 @@ static AnyV parse_import_directive(Lexer& lex) {
 //    (the main, exported, function)
 //
 
-AnyV parse_src_file_to_ast(const SrcFile* file) {
+AnyV parse_src_file_to_ast(SrcFilePtr file) {
   std::vector<AnyV> toplevel_declarations;
   AnnotationsAbove annotations;   // collected above the next declaration and flushed after creating it
   Lexer lex(file);

@@ -23,7 +23,7 @@
 namespace tolk {
 
 // only "substantial" AsmOps have "origin" — AST node (with SrcRange) which generated it;
-// stack ops (auto-inserted by the compiler to align the stack) don't have origin;
+// stack ops (auto-inserted by the compiler to align the stack) and debug marks don't have origin;
 // also, `}>ELSE<{` and similar don't have origin, it's not actually an asm instruction
 static constexpr AnyV NULL_ORIGIN = nullptr;
 
@@ -158,35 +158,33 @@ void Stack::save_stack_comment() const {
     return;
   }
 
-  std::ostringstream os;
-  for (StackItemInfo si : s) {
-    const TmpVar* tmp_var = &named_vars.at(si.var_idx);
-    if (!tmp_var->name.empty()) {
-      os << ' ' << tmp_var->name;
-    } else {
-      os << ' ' << '\'' << si.var_idx;
-    }
-#ifdef TOLK_DEBUG
-    // uncomment for detailed stack output, like `'15(binary-op) '16(glob-var)`
-    // if (tmp_var->purpose) os << tmp_var->purpose;
-#endif
-    if (si.const_idx >= 0) {
-      os << '=' << unique_constants[si.const_idx]->to_dec_string();
-    }
+  std::vector<DebugMarkCurrentStack::StackSlot> slots;
+  slots.reserve(s.size());
+  for (StackItemInfo ith : s) {
+    tolk_assert(ith.var_idx >= 0);
+    slots.emplace_back(DebugMarkCurrentStack::StackSlot{
+      .ir_var = &named_vars[ith.var_idx],
+      .int_val = ith.const_idx == -1 ? td::RefInt256{} : unique_constants[ith.const_idx],
+    });
   }
-  std::string comment_txt = os.str();
 
-  if (!o.list_.empty()) {
-    bool equal = o.list_.back().is_comment() && o.list_.back().op == comment_txt;
-    if (equal) {    // don't carry two identical stack comments without any asm between them
-      return;
+  for (auto prev = o.list_.rbegin(); prev != o.list_.rend() && prev->is_debug_mark(); ++prev) {
+    if (const auto* prev_info = std::get_if<DebugMarkCurrentStack>(&prev->debug_mark)) {
+      tolk_assert(prev_info->stack_slots.size() == slots.size());
+      bool equal = true;
+      for (int i = static_cast<int>(slots.size()) - 1; i >= 0 && equal; --i) {
+        equal &= prev_info->stack_slots[i].ir_var == slots[i].ir_var;
+      }
+      if (equal) {
+        return;
+      }
+      break;
     }
   }
-  // note that there may be several comments between two asm operations, reflecting stack permutations:
-  // say, we have `fun main() { var a = 10; var b = a; return 10; }`
-  // then internally in `o`, we store [ "10 PUSHINT", "// '1=10", "// a=10", "// b=10" ];
-  // later, when rendering a final comment, we take the last one: "10 PUSHINT // b=10"
-  o << AsmOp::Comment(std::move(comment_txt));
+
+  o << AsmOp::DebugMark(DebugMarkCurrentStack{
+    .stack_slots = std::move(slots)
+  });
 }
 
 void Stack::push_new_var(var_idx_t var_idx) {
@@ -312,7 +310,7 @@ void Stack::rearrange_top(var_idx_t top_var_idx, bool last) {
 }
 
 void Stack::apply_wrappers_if_retalt(AnyV origin, int callxargs_count) {
-  int pos0 = o.list_[0].is_comment() ? 1 : 0;
+  int pos0 = o.list_[0].is_debug_mark() ? 1 : 0;
   if (o.retalt_inserted_) {
     o.insert(pos0, NULL_ORIGIN, "SAMEALTSAVE");
     o.insert(pos0, NULL_ORIGIN, "c2 SAVE");
@@ -338,7 +336,9 @@ void Stack::apply_wrappers_if_retalt(AnyV origin, int callxargs_count) {
 // Looks ahead at the next op for optimization decisions (e.g. skip unused values).
 // Returns true if execution continues to the next op, false if control flow diverges (return, infinite loop).
 bool Op::generate_code_step(Stack& stack, const OpList& parent_ops, size_t self_idx) {
-  stack.save_stack_comment();
+  if (cl != Op::_Import) {
+    stack.save_stack_comment();
+  }
   // the last op is always a terminal _Nop, no code to generate, no next_op
   if (self_idx + 1 >= parent_ops.size()) {
     return false;
@@ -356,7 +356,12 @@ bool Op::generate_code_step(Stack& stack, const OpList& parent_ops, size_t self_
 
   switch (cl) {
     case _Nop:
+      return true;
     case _Import:
+      stack.o << AsmOp::DebugMark(debug_mark);  // DebugMarkEnterFunction
+      return true;
+    case _DebugMark:
+      tolk_assert(false && "_DebugMark should be handled in generate_code_all");
       return true;
     case _Return: {
       stack.enforce_state(left);
@@ -364,6 +369,7 @@ bool Op::generate_code_step(Stack& stack, const OpList& parent_ops, size_t self_
         stack.o << AsmOp::Custom(origin, "RETALT");
         stack.o.retalt_inserted_ = true;
       }
+      stack.o << AsmOp::DebugMark(debug_mark);  // DebugMarkLeaveFunction
       return false;
     }
     case _IntConst: {
@@ -462,15 +468,21 @@ bool Op::generate_code_step(Stack& stack, const OpList& parent_ops, size_t self_
           for (int i = 0; i < w_arg; i++) {
             args0.emplace_back(0);
           }
+          // we use NULL_ORIGIN to all asm ops inside a lambda `CONT<...>`, to prevent debugger jump there
           if (f_sym->is_asm_function()) {
-            std::get<FunctionBodyAsm*>(f_sym->body)->compile(stack.o, origin);  // compile res := f (args0)
+            std::get<FunctionBodyAsm*>(f_sym->body)->compile(stack.o, NULL_ORIGIN);  // compile res := f (args0)
           } else {
-            std::get<FunctionBodyBuiltinAsmOp*>(f_sym->body)->compile(stack.o, res, args0, origin);  // compile res := f (args0)
+            std::get<FunctionBodyBuiltinAsmOp*>(f_sym->body)->compile(stack.o, res, args0, NULL_ORIGIN);  // compile res := f (args0)
           }
         } else {
-          stack.o << AsmOp::Custom(origin, CodeBlob::fift_name(f_sym) + " CALLDICT", (int)right.size(), (int)left.size());
+          stack.o << AsmOp::Custom(NULL_ORIGIN, CodeBlob::fift_name(f_sym) + " CALLDICT", (int)right.size(), (int)left.size());
         }
         stack.o << AsmOp::Custom(NULL_ORIGIN, "}>");
+        // intentionally insert NOP after passing a callback/lambda; it's for debugger:
+        // `CONT<...> NOP MARK_XXX`, to make marks offset not equal to CONT end offset;
+        // this works automatically for IF/ELSE/loops in Fift, because `IF<{...}>` is actually `CONT<...> IF`;
+        // but for "just a continuation" (a lambda) manual NOP is a reasonable trade-off to be replayed identically
+        stack.o << AsmOp::Custom(NULL_ORIGIN, "NOP", 0, 0);
         stack.push_new_var(left.at(0));
         return true;
       }
@@ -636,6 +648,7 @@ bool Op::generate_code_step(Stack& stack, const OpList& parent_ops, size_t self_
       for (int i = 0; i < (int)right.size(); i++) {
         tolk_assert(stack.s[k + i].var_idx == right[i]);
       }
+      stack.o << AsmOp::DebugMark(debug_mark);  // DebugMarkSetGlob
       if (right.size() > 1) {
         stack.o << AsmOp::Tuple(origin, (int)right.size());
       }
@@ -920,6 +933,13 @@ void OpList::set_entry_var_info(VarDescrList&& front_var_info) {
 
 void OpList::generate_code_all(Stack& stack, size_t from) const {
   for (size_t i = from; i < list.size(); ++i) {
+    // _DebugMark doesn't affect the stack; handle it here to avoid interfering
+    // with optimizations in generate_code_step (e.g. will_now_immediate_throw, drop_vars_except)
+    if (list[i]->cl == Op::_DebugMark) {
+      stack.save_stack_comment();
+      stack.o << AsmOp::DebugMark(list[i]->debug_mark);
+      continue;
+    }
     int saved_mode = stack.mode;
     bool cont = list[i]->generate_code_step(stack, *this, i);
     stack.mode = saved_mode;

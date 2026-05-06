@@ -292,9 +292,11 @@ fun main() {}
     CONT:<{
       MIN
     }>
+    NOP
     CONT:<{
       MAX
     }>
+    NOP
     CONDSEL
     10 PUSHINT
     20 PUSHINT

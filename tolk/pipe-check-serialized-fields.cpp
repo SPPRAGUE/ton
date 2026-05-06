@@ -105,7 +105,7 @@ static void check_contract_directive_item(AnyTypeV type_node, std::string_view p
 // validate every type referenced by the `contract {...}` directive of the entrypoint file;
 // prevent `storage: int` and other non-serializable types to leak into `out.abi.json`
 static void check_contract_directive_serializability() {
-  const SrcFile* entrypoint_file = G.all_src_files.get_entrypoint_file();
+  SrcFilePtr entrypoint_file = G.all_src_files.get_entrypoint_file();
   if (!entrypoint_file->has_contract_directive()) {
     return;
   }

@@ -106,6 +106,23 @@ fun estimateSerialization() {
     )
 }
 
+struct TypeIdxSample {
+    value: int
+    payload: builder
+}
+
+@method_id(111)
+fun uniqueTypeIdx() {
+    return (
+        reflect.typeUniqueIdxOf<void>(),
+        reflect.typeUniqueIdxOf<int>(),
+        reflect.typeUniqueIdxOfObject(beginCell()),
+        reflect.typeUniqueIdxOf<TypeIdxSample>(),
+        reflect.typeUniqueIdxOfObject(TypeIdxSample { value: 1, payload: beginCell() }),
+        reflect.typeUniqueIdxOf<TypeIdxSample?>(),
+    )
+}
+
 fun main() {
     __expect_type(reflect.sourceLocation(), "SourceLocation");
 }
@@ -119,4 +136,5 @@ fun main() {
 @testcase | 106 | | 65 73 67
 @testcase | 107 | | 0 0 -1
 @testcase | 110 | | 1 9999 0 4 101 9999 0 4
+@testcase | 111 | | 0 1 4 12 12 13
  */

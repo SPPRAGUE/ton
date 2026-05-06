@@ -227,7 +227,7 @@ void Vertex<ast_local_var_lhs>::assign_var_ref(LocalVarPtr var_ref) {
   this->var_ref = var_ref;
 }
 
-void Vertex<ast_import_directive>::assign_src_file(const SrcFile* file) {
+void Vertex<ast_import_directive>::assign_src_file(SrcFilePtr file) {
   this->file = file;
 }
 

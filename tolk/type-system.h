@@ -23,6 +23,8 @@
 
 namespace tolk {
 
+struct JsonTypeExporter;
+
 /*
  *   TypeData is both a user-given and an inferred type representation.
  *   `int`, `cell`, `T`, `(int, [tuple])` are instances of TypeData.
@@ -105,7 +107,7 @@ public:
 
   virtual int get_type_id() const = 0;
   virtual std::string as_human_readable() const = 0;
-  virtual void as_abi_json(std::string& out) const = 0;
+  virtual void as_abi_json(std::string& out, JsonTypeExporter& registry) const = 0;
   virtual bool can_rhs_be_assigned(TypePtr rhs) const = 0;
   virtual bool can_be_casted_with_as_operator(TypePtr cast_to) const = 0;
 
@@ -145,7 +147,7 @@ public:
   int get_width_on_stack() const override;
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool can_hold_tvm_null_instead() const override;
@@ -166,7 +168,7 @@ public:
 
   int get_type_id() const override { return type_id_int; }
   std::string as_human_readable() const override { return "int"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -186,7 +188,7 @@ public:
 
   int get_type_id() const override { return type_id_bool; }
   std::string as_human_readable() const override { return "bool"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -205,7 +207,7 @@ public:
 
   int get_type_id() const override { return type_id_cell; }
   std::string as_human_readable() const override { return "cell"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -224,7 +226,7 @@ public:
 
   int get_type_id() const override { return type_id_slice; }
   std::string as_human_readable() const override { return "slice"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -243,7 +245,7 @@ public:
 
   int get_type_id() const override { return type_id_builder; }
   std::string as_human_readable() const override { return "builder"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -263,7 +265,7 @@ public:
 
   int get_type_id() const override { return type_id_continuation; }
   std::string as_human_readable() const override { return "continuation"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -284,7 +286,7 @@ public:
 
   int get_type_id() const override { return type_id_string; }
   std::string as_human_readable() const override { return "string"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -315,7 +317,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -337,7 +339,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   TypePtr replace_children_custom(const ReplacerCallbackT& callback) const override;
@@ -363,7 +365,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   TypePtr replace_children_custom(const ReplacerCallbackT& callback) const override;
@@ -387,7 +389,7 @@ public:
 
   int get_type_id() const override { return 0; }
   std::string as_human_readable() const override { return "null"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -413,7 +415,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   TypePtr replace_children_custom(const ReplacerCallbackT& callback) const override;
@@ -439,7 +441,7 @@ public:
   int get_width_on_stack() const override;
   int get_type_id() const override;
   std::string as_human_readable() const override { return nameT; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool equal_to(TypePtr rhs) const override;
@@ -470,7 +472,7 @@ public:
   int get_width_on_stack() const override;
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   TypePtr replace_children_custom(const ReplacerCallbackT& callback) const override;
@@ -497,7 +499,7 @@ public:
   int get_width_on_stack() const override;
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool can_hold_tvm_null_instead() const override;
@@ -520,7 +522,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool equal_to(TypePtr rhs) const override;
@@ -547,7 +549,7 @@ public:
   int get_width_on_stack() const override;
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   TypePtr replace_children_custom(const ReplacerCallbackT& callback) const override;
@@ -577,7 +579,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool equal_to(TypePtr rhs) const override;
@@ -598,7 +600,7 @@ public:
 
   int get_type_id() const override { return type_id_coins; }
   std::string as_human_readable() const override { return "coins"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -623,7 +625,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool equal_to(TypePtr rhs) const override;
@@ -675,7 +677,7 @@ public:
   int get_width_on_stack() const override;
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   TypePtr replace_children_custom(const ReplacerCallbackT& callback) const override;
@@ -703,7 +705,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override;
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   TypePtr replace_children_custom(const ReplacerCallbackT& callback) const override;
@@ -728,7 +730,7 @@ public:
 
   int get_type_id() const override { return type_id_unknown; }
   std::string as_human_readable() const override { return "unknown"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool can_hold_tvm_null_instead() const override;
@@ -751,7 +753,7 @@ public:
 
   int get_type_id() const override;
   std::string as_human_readable() const override { return "undefined"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
 };
@@ -774,7 +776,7 @@ public:
   int get_width_on_stack() const override;
   int get_type_id() const override { return type_id_never; }
   std::string as_human_readable() const override { return "never"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool can_hold_tvm_null_instead() const override;
@@ -798,7 +800,7 @@ public:
   int get_width_on_stack() const override;
   int get_type_id() const override { return type_id_void; }
   std::string as_human_readable() const override { return "void"; }
-  void as_abi_json(std::string& out) const override;
+  void as_abi_json(std::string& out, JsonTypeExporter& registry) const override;
   bool can_rhs_be_assigned(TypePtr rhs) const override;
   bool can_be_casted_with_as_operator(TypePtr cast_to) const override;
   bool can_hold_tvm_null_instead() const override;
