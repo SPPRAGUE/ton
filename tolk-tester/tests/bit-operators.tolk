@@ -151,12 +151,12 @@ fun testBoolCompareOptimized(x: bool) {
     UNTIL:<{
       INC	//  i n cnt
       OVER	//  i n cnt n
-      0 EQINT	//  i n cnt '12
+      0 EQINT	//  i n cnt '14
     }>	//  i n cnt
     s0 s2 XCHG	//  cnt n i
-    NOT	//  cnt n '13
-    SWAP	//  cnt '13 n
-    0 EQINT	//  cnt '13 '14
+    NOT	//  cnt n '15
+    SWAP	//  cnt '15 n
+    0 EQINT	//  cnt '15 '16
   }>
 """
 
