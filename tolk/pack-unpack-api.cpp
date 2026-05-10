@@ -181,12 +181,21 @@ public:
           return CantSerializeBecause("because variant #" + std::to_string(i + 1) + " of type `" + variant->as_human_readable() + "` can't be serialized", why.value());
         }
       }
+      if (t_union->or_null == TypeDataVoid::create()) {
+        return CantSerializeBecause("because `void | null` has no binary representation");
+      }
       if (!t_union->or_null) {
         std::string because_msg;
         bool tree_auto_generated;
         auto_generate_opcodes_for_union(t_union, because_msg, tree_auto_generated);
         if (!because_msg.empty()) {
           return CantSerializeBecause("because could not automatically generate serialization prefixes for a union\n" + because_msg);
+        }
+        if (t_union->size() == 2 && t_union->variants.back() == TypeDataVoid::create()) {
+          PackSize sizeT = estimate_serialization_size(t_union->variants[0]);
+          if (sizeT.min_bits == 0 && sizeT.min_refs == 0) {   // `Empty | void` and `remaining | void` clash
+            return CantSerializeBecause("because variant `" + t_union->variants[0]->as_human_readable() + "` can be indistinguishable from `void`");
+          }
         }
       }
       return {};
