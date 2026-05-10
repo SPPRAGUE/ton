@@ -91,6 +91,14 @@ static Error err_not_bool_as_condition(std::string_view keyword, AnyExprV cond) 
   return err("can not use `{}` as a boolean condition", cond->inferred_type);
 }
 
+// make an error on `!someNumber`, suggest `someNumber == 0`
+static Error err_not_bool_in_unary_not(AnyExprV unary_expr) {
+  if (expect_integer(unary_expr)) {
+    return err("can not apply operator `!` to `{}`\n""hint: use not `!someNumber` but `someNumber == 0`", unary_expr->inferred_type);
+  }
+  return err_cannot_apply_operator("!", unary_expr);
+}
+
 GNU_ATTRIBUTE_NOINLINE
 static void warning_condition_always_true_or_false(FunctionPtr cur_f, SrcRange keyword_range, AnyExprV cond, const char* operator_name) {
   bool no_warning = cond->kind == ast_bool_const || cond->kind == ast_int_const;
@@ -310,8 +318,8 @@ class CheckInferredTypesVisitor final : public ASTVisitorFunctionBody {
 
     switch (v->tok) {
       case tok_logical_not:
-        if (!expect_integer(rhs) && !expect_boolean(rhs)) {
-          err_cannot_apply_operator(v->operator_name, rhs).collect(v->operator_range, cur_f);
+        if (!expect_boolean(rhs)) {
+          err_not_bool_in_unary_not(rhs).collect(v->operator_range, cur_f);
         }
         break;
       default:

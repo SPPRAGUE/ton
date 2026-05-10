@@ -125,7 +125,7 @@ fun test6() {
 fun test7() {
     var (a, b, c, d) = (getNullableInt(), getNullableInt(), getNullableInt(), getNullableInt());
     if (a == null && true) { return -1; }
-    if (true && true && 1 && !0 && b == null) { return -2; }
+    if (true && true && b == null) { return -2; }
     if (true ? c == null && (((c))) == null && true : false) { return -3; }
     if (!true ? rand() > 0 : a != null && (d == null && b != null)) { return -4; }
     return a + b + c + d;
@@ -271,7 +271,7 @@ fun test26() {
         getNullableInt(), getNullableInt(), getNullableInt(), getNullableInt(), getNullableInt()];
     if ((~(x.0 = rand())) != 0) { return; }
     if ((x.1 = rand()) < (x.2 = rand())) { return; }
-    else if (!(x.2 <=> ((x).3 = rand()))) { return; }
+    else if ((x.2 <=> ((x).3 = rand())) == 0) { return; }
     x.5 = ((x.4 = rand()) != 0) ? (x.6 = rand()) : (x.6 = rand());
     if (((x.7 = rand()) as int) != 0) { return; }
     if (((((x.8 = rand()) != null)))) { return; }
@@ -285,7 +285,7 @@ fun test27() {
         as [int?,int?,int?,int?,int?,int?,int?,int?,int?,int?], []);
     +(x.0 = rand());
     x.0 += ([((x.1 = rand()) < (x.2 = rand() + x.1)) as int] as [int]).0;
-    !(x.2 <=> (x.3 = rand() + x.2));
+    (x.2 <=> (x.3 = rand() + x.2)) == 0;
     x.5 = ((x.4 = rand()) != 0) ? (x.6 = rand()) : (x.6 = rand());
     (x.7 = rand()) as int;
     (((((x.8 = rand()) != null))));
@@ -295,13 +295,13 @@ fun test27() {
 
 fun test28() {
     var x = (getNullableInt(), getNullableInt(), getNullableInt(), getNullableInt());
-    __expect_type((x.0 = rand(), x.0 += (x.1 = rand()) as int, !(x.1 <=> (x.2 = rand() + x.0)) == null, (x.3 = rand()) != 0 ? x.3 : (!x.3) as int),
+    __expect_type((x.0 = rand(), x.0 += (x.1 = rand()) as int, ((x.1 <=> (x.2 = rand() + x.0)) == 0) == null, (x.3 = rand()) != 0 ? x.3 : (x.3 == 0) as int),
                   "(int, int, bool, int)");
 }
 
 fun test29() {
     var x = (getNullableInt(), getNullableInt(), getNullableInt(), getNullableInt());
-    [x.0 = rand(), ((x.0 += (x.1 = rand()) as int)), !(x.1 <=> (x.2 = rand() + x.0)) == null, (x.3 = rand()) != 0 ? x.3 : (!x.3) as int] as array<unknown>;
+    [x.0 = rand(), ((x.0 += (x.1 = rand()) as int)), ((x.1 <=> (x.2 = rand() + x.0)) == 0) == null, (x.3 = rand()) != 0 ? x.3 : (x.3 == 0) as int] as array<unknown>;
 }
 
 @method_id(130)
@@ -365,7 +365,7 @@ fun test34() {
 fun test35() {
     var (x, y, z, t) = (getNullableInt(), getNullableInt(), getNullableInt(), (getNullableInt(), getNullableInt()));
     assert (x != null, 404);
-    assert (t.0 != null && true && !(t.1 == null) && !(z = 4)) throw (y = 404);
+    assert (t.0 != null && true && !(t.1 == null) && (z = 4) == 0) throw (y = 404);
     __expect_type(y, "int?");
     return x + t.0 + t.1 + z;
 }

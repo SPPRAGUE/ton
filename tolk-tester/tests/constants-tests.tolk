@@ -66,7 +66,7 @@ enum Color {
 const boolOpsWithInts = (10 < 3, 10 <= 3, 10 > 3, 10 >= 3, 10 == 3, 10 != 3, 10 <= 10, 10 >= (9 + 1), )
 const boolOpsWithBools = (true == true, true != true, false == false, !!false != !!false)
 const boolBitwise = (true & true, true & false, false & true, false & false, true | false, true ^ true, true ^ false)
-const intBitwise = (2 & 3, 2 ^ 3, 2 | 3, 1 | 5, 0xFF & 0x80, !0, !100)
+const intBitwise = (2 & 3, 2 ^ 3, 2 | 3, 1 | 5, 0xFF & 0x80, 0 == 0, 100 == 0)
 const alsoBlue = Color.blue
 const also2 = Color.blue as int
 
